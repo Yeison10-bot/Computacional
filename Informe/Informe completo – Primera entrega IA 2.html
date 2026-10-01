@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe completo – Primera entrega IA 2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<style>
+  :root{
+    --bg:#faf8f5; --bg-card:#ffffff; --text:#2b2620; --text-soft:#5a5245;
+    --accent:#a8552f; --accent2:#3f7d54; --accent3:#3f5f7d;
+    --accent-soft:#f0dccb; --border:#e6ddd1; --code-bg:#2b2620; --code-text:#f0e9df;
+    --table-head:#efe3d3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1c1a17; --bg-card:#252220; --text:#ece5da; --text-soft:#c2b8a8;
+      --accent:#e0a479; --accent2:#7fd19a; --accent3:#8fb3d9;
+      --accent-soft:#3a2c22; --border:#3a352d; --code-bg:#161412; --code-text:#e8e1d6;
+      --table-head:#332a20;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1c1a17; --bg-card:#252220; --text:#ece5da; --text-soft:#c2b8a8;
+    --accent:#e0a479; --accent2:#7fd19a; --accent3:#8fb3d9;
+    --accent-soft:#3a2c22; --border:#3a352d; --code-bg:#161412; --code-text:#e8e1d6;
+    --table-head:#332a20;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family: Georgia, 'Times New Roman', serif; line-height:1.65;
+    margin:0; padding:0 1rem 4rem;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  .wrap{max-width:880px; margin:0 auto;}
+  header.hero{padding:3rem 0 1.5rem; border-bottom:3px solid var(--accent); margin-bottom:2rem;}
+  header.hero h1{font-size:2rem; margin:0 0 .5rem; color:var(--accent); font-family:'Trebuchet MS',sans-serif;}
+  header.hero p{color:var(--text-soft); font-size:1.02rem; margin:.3rem 0;}
+  nav.toc{background:var(--bg-card); border:1px solid var(--border); border-radius:10px;
+    padding:1.2rem 1.5rem; margin-bottom:2.5rem;}
+  nav.toc h2{margin-top:0; font-size:1.1rem; color:var(--accent); font-family:'Trebuchet MS',sans-serif;}
+  nav.toc ol{margin:0; padding-left:1.3rem; columns:2; column-gap:2rem;}
+  nav.toc li{margin-bottom:.4rem; break-inside:avoid;}
+  nav.toc a{color:var(--text); text-decoration:none; border-bottom:1px dotted var(--text-soft);}
+  nav.toc a:hover{color:var(--accent);}
+  section{margin-bottom:3rem;}
+  h2{font-family:'Trebuchet MS',sans-serif; color:var(--accent); font-size:1.45rem;
+     border-bottom:1px solid var(--border); padding-bottom:.4rem; margin-top:0;}
+  h3{font-family:'Trebuchet MS',sans-serif; color:var(--text); font-size:1.15rem; margin-top:1.8rem;}
+  h4{font-size:1rem; color:var(--accent); margin-bottom:.3rem;}
+  p{margin:.7rem 0;}
+  .card{background:var(--bg-card); border:1px solid var(--border); border-radius:10px;
+    padding:1.2rem 1.4rem; margin:1.1rem 0;}
+  .callout{background:var(--accent-soft); border-left:4px solid var(--accent); border-radius:6px;
+    padding:.9rem 1.2rem; margin:1.1rem 0; font-size:.96rem;}
+  .callout strong{color:var(--accent);}
+  .grafica{background:var(--accent-soft); border-left:4px solid var(--accent3); border-radius:6px;
+    padding:1rem 1.3rem; margin:1.1rem 0;}
+  .grafica h4{color:var(--accent3); margin-top:0;}
+  table{width:100%; border-collapse:collapse; margin:1.1rem 0; font-size:.92rem;
+    overflow-x:auto; display:block;}
+  table thead{display:table-header-group;} table tbody{display:table-row-group;}
+  table, tr, td, th{display:revert;}
+  th{background:var(--table-head); text-align:left; padding:.5rem .65rem; border:1px solid var(--border);}
+  td{padding:.5rem .65rem; border:1px solid var(--border); vertical-align:top;}
+  code{background:var(--accent-soft); border-radius:4px; padding:.1rem .35rem;
+    font-family:'Courier New',monospace; font-size:.88rem;}
+  pre{background:var(--code-bg); color:var(--code-text); border-radius:8px; padding:1rem 1.2rem;
+    overflow-x:auto; font-size:.82rem; line-height:1.5; max-width:100%;}
+  pre code{background:none; padding:0; color:inherit;}
+  ul,ol{margin:.6rem 0; padding-left:1.4rem;} li{margin-bottom:.4rem;}
+  .badge{display:inline-block; background:var(--accent); color:#fff; border-radius:20px;
+    padding:.15rem .7rem; font-size:.73rem; font-family:'Trebuchet MS',sans-serif; margin-right:.4rem;}
+  .archivo{font-family:'Courier New',monospace; background:var(--table-head); padding:.15rem .5rem;
+    border-radius:5px; font-size:.9rem;}
+  footer{text-align:center; color:var(--text-soft); font-size:.85rem; margin-top:3rem;
+    border-top:1px solid var(--border); padding-top:1.5rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>📋 Informe completo — Primera entrega IA 2</h1>
+  <p>Conceptos, código, funciones, gráficas y métricas explicados paso a paso</p>
+  <p>Datasets: <strong>Crop_recommendation.csv</strong> (clasificación) · <strong>train.csv / concreto</strong> (regresión)</p>
+</header>
+
+<nav class="toc">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#intro">Objetivo del proyecto</a></li>
+    <li><a href="#arquitectura">Arquitectura: archivos y funciones</a></li>
+    <li><a href="#datos">Las bases de datos: cómo se usaron</a></li>
+    <li><a href="#preproceso">Preprocesamiento</a></li>
+    <li><a href="#metricas">Métricas de evaluación</a></li>
+    <li><a href="#arboles">Árboles de decisión</a></li>
+    <li><a href="#rf">Random Forest</a></li>
+    <li><a href="#regresion">Regresión (árboles y RF)</a></li>
+    <li><a href="#knn">KNN</a></li>
+    <li><a href="#clustering">Clustering (K-means)</a></li>
+    <li><a href="#sobreajuste">Comparación con ruido: sobre/sub-ajuste</a></li>
+    <li><a href="#leer-graficas">Guía rápida: cómo leer cada gráfica</a></li>
+    <li><a href="#conclusiones">Conclusiones</a></li>
+  </ol>
+</nav>
+
+<section id="intro">
+  <h2>1. Objetivo del proyecto</h2>
+  <p>Esta entrega compara distintas técnicas de <strong>Machine Learning</strong> —árboles de
+  decisión, Random Forest, KNN y K-means— aplicadas a dos problemas reales: predecir el
+  <strong>cultivo</strong> más adecuado según las condiciones del suelo y clima (clasificación),
+  y predecir la <strong>resistencia del concreto</strong> según su mezcla (regresión). El hilo
+  conductor de todo el trabajo es el <strong>sobreajuste</strong>: en cada técnica se muestra
+  cómo controlarlo y cómo se ve cuando ocurre.</p>
+  <p>Todo el proyecto corre desde una única interfaz interactiva (<span class="archivo">app.py</span>,
+  hecha con <strong>Streamlit</strong>), donde cada botón entrena el modelo correspondiente
+  <em>en vivo</em> con los datos reales — nada viene precalculado.</p>
+</section>
+
+<section id="arquitectura">
+  <h2>2. Arquitectura: archivos y funciones</h2>
+  <p>El proyecto está dividido en módulos, cada uno responsable de una parte, para que el
+  código sea legible y cada técnica se pueda probar por separado:</p>
+  <table>
+    <thead><tr><th>Archivo</th><th>Qué contiene</th></tr></thead>
+    <tbody>
+      <tr><td class="archivo">preprocesamiento.py</td><td>Carga los datasets, divide train/test, estandariza/escala</td></tr>
+      <tr><td class="archivo">arboles_decision.py</td><td>Script standalone: árboles de decisión (clasificación)</td></tr>
+      <tr><td class="archivo">random_forest.py</td><td>Script standalone: Random Forest (clasificación)</td></tr>
+      <tr><td class="archivo">regresion.py</td><td>Script standalone: árboles y RF de regresión (concreto)</td></tr>
+      <tr><td class="archivo">knn.py</td><td>Script standalone: KNN</td></tr>
+      <tr><td class="archivo">clustering.py</td><td>Script standalone: K-means</td></tr>
+      <tr><td class="archivo">main.py</td><td>Corre todos los scripts anteriores en orden, de un tirón</td></tr>
+      <tr><td class="archivo">app.py</td><td><strong>La interfaz interactiva</strong> — reutiliza toda la lógica anterior, con teoría y gráficas en vivo</td></tr>
+    </tbody>
+  </table>
+  <p>Todas las importaciones se hacen desde librerías estándar de ciencia de datos en Python:</p>
+  <pre><code>import pandas as pd                  # manejo de tablas de datos (DataFrames)
+import numpy as np                   # operaciones numéricas y arreglos
+import matplotlib.pyplot as plt      # generación de gráficas
+import seaborn as sns                # gráficas estadísticas (matrices de confusión)
+import streamlit as st               # la interfaz web interactiva
+
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, \
+    mean_absolute_error, mean_squared_error, r2_score, \
+    silhouette_score, davies_bouldin_score</code></pre>
+  <p><strong>scikit-learn</strong> (importado como <code>sklearn</code>) es la librería que
+  contiene las implementaciones ya hechas de cada algoritmo (árboles, bosques, KNN, K-means)
+  y de las métricas — no se programó ningún algoritmo desde cero, se usaron las versiones
+  estándar de la industria, configurando sus parámetros según lo que pide cada punto de la
+  rúbrica.</p>
+</section>
+
+<section id="datos">
+  <h2>3. Las bases de datos: cómo se usaron</h2>
+  <p>El módulo <span class="archivo">preprocesamiento.py</span> centraliza la carga de ambos
+  datasets, para que el resto del código nunca tenga que leer un CSV directamente:</p>
+  <pre><code>def cargar_crop():
+    """Carga el dataset de clasificación de cultivos."""
+    df = pd.read_csv(RUTA_CROP)
+    X = df.drop(columns=["label"])   # X = las 7 variables predictoras
+    y = df["label"]                  # y = la variable objetivo (el cultivo)
+    return X, y, df
+
+def cargar_concreto():
+    """Carga el dataset de regresión de resistencia del concreto."""
+    df = pd.read_csv(RUTA_CONCRETO)
+    if "Row ID" in df.columns:
+        df = df.drop(columns=["Row ID"])   # es solo un índice, no aporta info
+    X = df.drop(columns=["csMPa"])
+    y = df["csMPa"]                        # y = la resistencia (número continuo)
+    return X, y, df</code></pre>
+  <p>La convención <code>X</code> / <code>y</code> es estándar en Machine Learning: <code>X</code>
+  (mayúscula) es la tabla de variables predictoras (una matriz), <code>y</code> (minúscula) es
+  la columna que se quiere predecir (un vector).</p>
+
+  <h3>3.1 Crop_recommendation.csv</h3>
+  <p><strong>2200 registros</strong>, 7 variables predictoras + 1 columna objetivo
+  (<code>label</code>), <strong>sin valores nulos</strong>, perfectamente balanceado: exactamente
+  100 muestras de cada uno de los 22 cultivos. Se usa para <strong>clasificación</strong> en
+  las pestañas de Árboles, Random Forest y KNN, y también (quitándole la columna
+  <code>label</code>) para <strong>Clustering</strong>.</p>
+  <table>
+    <thead><tr><th>Variable</th><th>Tipo de dato</th><th>Clasificación estadística</th></tr></thead>
+    <tbody>
+      <tr><td>N, P, K</td><td>int64</td><td>Cuantitativa discreta</td></tr>
+      <tr><td>temperature, humidity, ph, rainfall</td><td>float64</td><td>Cuantitativa continua</td></tr>
+      <tr><td>label</td><td>object (texto)</td><td>Cualitativa nominal (objetivo)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 train.csv (concreto)</h3>
+  <p><strong>721 registros</strong>, 8 variables predictoras + <code>csMPa</code> (objetivo),
+  sin nulos. Se usa para <strong>regresión</strong>.</p>
+  <table>
+    <thead><tr><th>Variable</th><th>Tipo de dato</th><th>Clasificación estadística</th></tr></thead>
+    <tbody>
+      <tr><td>cement, slag, flyash, water, superplasticizer, coarseaggregate, fineaggregate</td>
+          <td>float64</td><td>Cuantitativa continua</td></tr>
+      <tr><td>age</td><td>int64</td><td>Cuantitativa discreta (días completos)</td></tr>
+      <tr><td>csMPa</td><td>float64</td><td>Cuantitativa continua (objetivo)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout"><strong>¿Por qué importa la distribución de los datos?</strong> Revisar
+  que el dataset de cultivos esté balanceado (100 de cada clase) evita que el modelo se sesgue
+  hacia una clase mayoritaria; revisar la distribución de <code>csMPa</code> (histograma) ayuda
+  a detectar valores atípicos que podrían generar ruido en la regresión. Ambas cosas se muestran
+  en la pestaña "Introducción" de la interfaz.</div>
+</section>
+
+<section id="preproceso">
+  <h2>4. Preprocesamiento</h2>
+  <p>El preprocesamiento transforma las variables numéricas ANTES de entrenar, para que estén
+  en una escala adecuada para el algoritmo que se va a usar.</p>
+  <pre><code>def dividir_datos(X, y, test_size=0.2, random_state=42, estratificar=False):
+    stratify = y if estratificar else None
+    return train_test_split(X, y, test_size=test_size,
+                             random_state=random_state, stratify=stratify)
+
+def estandarizar(X_train, X_test):
+    """Z-score: media 0, desviación estándar 1. Para KNN y K-means."""
+    scaler = StandardScaler()
+    X_train_esc = scaler.fit_transform(X_train)   # ajusta Y transforma el train
+    X_test_esc = scaler.transform(X_test)         # SOLO transforma el test
+    return X_train_esc, X_test_esc, scaler</code></pre>
+  <p><strong>Detalle importante del código:</strong> <code>fit_transform</code> se llama solo
+  sobre <code>X_train</code> (calcula la media y desviación usando ÚNICAMENTE datos de
+  entrenamiento), y luego <code>transform</code> (sin <code>fit</code>) se aplica al test. Si se
+  ajustara el escalador con todos los datos (train+test juntos), habría "fuga de información"
+  del test hacia el entrenamiento — un error común que infla artificialmente el desempeño.</p>
+
+  <table>
+    <thead><tr><th>Técnica</th><th>Fórmula</th><th>Se usa en</th></tr></thead>
+    <tbody>
+      <tr><td>Estandarización (Z-score)</td><td><code>z = (x − media) / desviación</code></td>
+          <td>KNN, K-means (dependen de distancias)</td></tr>
+      <tr><td>Escalado Min-Max</td><td><code>x' = (x − min) / (max − min)</code></td>
+          <td>Alternativa que comprime a [0,1], mostrada en la interfaz para comparar</td></tr>
+      <tr><td>Sin escalar</td><td>—</td>
+          <td>Árboles y Random Forest (comparan valor vs. umbral, la escala no afecta)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: tabla antes/después de preprocesar (pestaña Preprocesamiento)</h4>
+    <p>La interfaz muestra <code>min / max / media / desviación</code> de cada variable en 3
+    versiones (original, estandarizada, Min-Max) y las mismas 5 filas en las 3 versiones.
+    <strong>Cómo leerla:</strong> en la versión estandarizada, la fila "mean" debería dar ≈0 y
+    "std" ≈1 para todas las columnas, sin importar que <code>rainfall</code> llegue a 298 y
+    <code>ph</code> no pase de 10 — eso demuestra visualmente que la estandarización iguala las
+    escalas.</p>
+  </div>
+</section>
+
+<section id="metricas">
+  <h2>5. Métricas de evaluación</h2>
+  <p>Estas métricas se calculan DESPUÉS de entrenar cada modelo, comparando lo que predijo
+  contra la respuesta real del set de prueba (que el modelo nunca vio durante el entrenamiento).</p>
+
+  <h3>5.1 Clasificación (cultivos)</h3>
+  <table>
+    <thead><tr><th>Métrica</th><th>Pregunta que responde</th><th>Código (sklearn)</th></tr></thead>
+    <tbody>
+      <tr><td>Accuracy</td><td>¿Cuántas predicciones fueron correctas, en total?</td>
+          <td><code>accuracy_score(y_test, pred)</code></td></tr>
+      <tr><td>Precision</td><td>Cuando el modelo predijo la clase X, ¿cuántas veces acertó?</td>
+          <td rowspan="3"><code>classification_report(y_test, pred)</code></td></tr>
+      <tr><td>Recall</td><td>De todos los casos que REALMENTE eran clase X, ¿cuántos encontró?</td></tr>
+      <tr><td>F1-score</td><td>Combina precision y recall en un solo número</td></tr>
+    </tbody>
+  </table>
+  <p>Fórmulas exactas (TP = verdaderos positivos, FP = falsos positivos, FN = falsos negativos,
+  para una clase específica):</p>
+  <pre><code>Precision = TP / (TP + FP)
+Recall    = TP / (TP + FN)
+F1        = 2 * (Precision * Recall) / (Precision + Recall)</code></pre>
+
+  <h3>5.2 Regresión (concreto)</h3>
+  <table>
+    <thead><tr><th>Métrica</th><th>Qué mide</th><th>Fórmula</th></tr></thead>
+    <tbody>
+      <tr><td>MAE</td><td>Error promedio, en las mismas unidades que csMPa (MPa)</td>
+          <td><code>promedio(|real − predicho|)</code></td></tr>
+      <tr><td>RMSE</td><td>Como MAE pero castiga más fuerte los errores grandes</td>
+          <td><code>raíz(promedio((real − predicho)²))</code></td></tr>
+      <tr><td>R²</td><td>Qué proporción de la variación logra explicar el modelo (1.0 = perfecto)</td>
+          <td><code>1 − (error del modelo / error de solo usar el promedio)</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: Matriz de confusión</h4>
+    <p>Es una tabla/heatmap donde las <strong>filas son la clase REAL</strong> y las
+    <strong>columnas son lo que el modelo PREDIJO</strong>. La diagonal principal (de arriba-izquierda
+    a abajo-derecha) son los aciertos; cualquier valor fuera de la diagonal es un error, y te dice
+    exactamente con qué clase se confundió. Ejemplo real de este proyecto: en el árbol de
+    cultivos, la fila "lentil" tiene la mayoría de sus casos en la columna "lentil" (aciertos),
+    pero unos pocos caen en la columna "mothbeans" — el modelo confunde esas dos leguminosas
+    porque tienen condiciones de suelo parecidas.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: Real vs. predicho (regresión)</h4>
+    <p>Es el equivalente a la matriz de confusión pero para números continuos: cada punto es
+    una muestra de prueba, el eje X es su valor real de <code>csMPa</code> y el eje Y es lo que
+    predijo el modelo. Se traza una línea diagonal punteada de "predicción perfecta" — entre
+    más pegados estén los puntos a esa línea, mejor el modelo. Puntos muy por encima de la línea
+    significan que el modelo sobreestimó; muy por debajo, que subestimó.</p>
+  </div>
+</section>
+
+<section id="arboles">
+  <h2>6. Árboles de decisión</h2>
+  <p>Un árbol de decisión aprende una secuencia de preguntas tipo "¿la variable X es menor o
+  igual a un umbral?" que separan los datos en grupos cada vez más puros. Código central:</p>
+  <pre><code>from sklearn.tree import DecisionTreeClassifier
+
+modelo = DecisionTreeClassifier(
+    max_depth=4,            # profundidad máxima (pre-poda)
+    min_samples_leaf=5,     # mínimo de muestras por hoja (pre-poda)
+    criterion="gini",       # o "entropy": cómo mide la impureza de un nodo
+    random_state=42,        # semilla para que el resultado sea reproducible
+)
+modelo.fit(X_train, y_train)        # entrena
+pred_test = modelo.predict(X_test)  # predice sobre datos nuevos</code></pre>
+  <p><strong>Poda:</strong> la <em>pre-poda</em> limita el crecimiento antes de entrenar
+  (<code>max_depth</code>, <code>min_samples_leaf</code>); la <em>post-poda</em> deja crecer el
+  árbol completo y luego recorta las ramas menos útiles con <code>ccp_alpha</code>:</p>
+  <pre><code>path = arbol_completo.cost_complexity_pruning_path(X_train, y_train)
+alphas = path.ccp_alphas          # niveles de poda posibles, de menor a mayor
+arbol_podado = DecisionTreeClassifier(ccp_alpha=alphas[i], random_state=42)</code></pre>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: el árbol dibujado</h4>
+    <p>Cada caja es un nodo. Si tiene una condición arriba (ej. <code>X[6] rainfall ≤ 30.18</code>),
+    es un nodo interno: sigue la flecha "Sí" si la muestra cumple la condición, "No" si no.
+    Cada caja muestra también la <strong>clase mayoritaria</strong> en ese nodo, el
+    <strong>gini</strong> (0 = nodo perfectamente puro, todos son de la misma clase; más
+    cercano a 1 = mezcla de varias clases) y <strong>n</strong> (cuántas muestras de
+    entrenamiento cayeron ahí). El color de la caja también refleja la pureza: colores sólidos
+    son nodos puros, colores más pálidos son nodos mezclados.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: efecto de la post-poda (ccp_alpha)</h4>
+    <p>Eje X = nivel de poda (alpha), eje Y = accuracy. Dos líneas: train y test. Al principio
+    (alpha bajo = poca poda) train suele estar muy por encima de test (sobreajuste). A medida
+    que sube el alpha (más poda), train baja pero test puede subir o mantenerse — el mejor punto
+    es donde test es más alto, aunque train haya bajado.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: comparación de los 3 modelos (tabla)</h4>
+    <p>Compara, lado a lado, el árbol sin restricciones, el pre-podado y el de partición 70/30,
+    mostrando % de train/test, registros exactos, tiempo de entrenamiento y accuracy train/test
+    de cada uno — para ver de un vistazo cuál generaliza mejor y qué tan caro es entrenarlo.</p>
+  </div>
+</section>
+
+<section id="rf">
+  <h2>7. Random Forest</h2>
+  <p>Un Random Forest entrena muchos árboles distintos y decide por votación mayoritaria (en
+  clasificación) o promedio (en regresión):</p>
+  <pre><code>from sklearn.ensemble import RandomForestClassifier
+
+modelo = RandomForestClassifier(
+    n_estimators=491,   # cantidad de árboles (impar, para minimizar empates)
+    random_state=42,
+    n_jobs=-1,           # usa todos los núcleos del procesador en paralelo
+    bootstrap=True,      # cada árbol se entrena con muestra aleatoria CON reemplazo
+)</code></pre>
+  <p><strong>¿Por qué números impares (9, 49, 491)?</strong> Con un número par de árboles, dos
+  clases podrían empatar exactamente en votos. En un problema de más de 2 clases (como los 22
+  cultivos), esto reduce pero no elimina el riesgo de empate entre dos clases minoritarias — por
+  eso también se define una regla de desempate basada en <code>predict_proba</code> (la
+  probabilidad promedio del bosque), en vez de solo contar votos.</p>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: árboles vs. tiempo vs. accuracy</h4>
+    <p>Dos ejes Y sobre el mismo eje X (número de árboles, en escala logarítmica): la línea
+    naranja es el tiempo de entrenamiento (sube casi en línea recta), la línea azul es el
+    accuracy en test. <strong>Lo que hay que buscar:</strong> el accuracy típicamente sube
+    rápido de 9 a 49 árboles y luego se aplana — de 49 a 491 el tiempo se dispara pero el
+    accuracy casi no mejora, lo que demuestra que "más árboles" no siempre vale la pena.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: importancia de variables</h4>
+    <p>Barras — cada barra es una variable, la altura es cuánto contribuyó (en promedio, entre
+    todos los árboles del bosque) a reducir la impureza. Las variables con barras más altas son
+    las que el modelo considera más determinantes para decidir la clase.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: árbol individual dentro del bosque</h4>
+    <p>Es literalmente uno de los N árboles del bosque, dibujado igual que en la sección de
+    Árboles. Cambiar el número del árbol muestra cómo cada uno terminó distinto, aunque
+    entrenaron sobre la misma base de datos — evidencia visual directa del <em>bootstrap</em>
+    (cada árbol vio una muestra aleatoria distinta).</p>
+  </div>
+</section>
+
+<section id="regresion">
+  <h2>8. Regresión (árboles y Random Forest sobre concreto)</h2>
+  <p>Mismo código que clasificación, pero con las versiones de regresión:</p>
+  <pre><code>from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+
+modelo = DecisionTreeRegressor(max_depth=6, random_state=42)
+modelo.fit(X_train, y_train)
+pred = modelo.predict(X_test)   # devuelve NÚMEROS, no clases
+
+mae = mean_absolute_error(y_test, pred)
+rmse = (mean_squared_error(y_test, pred)) ** 0.5
+r2 = r2_score(y_test, pred)</code></pre>
+  <p>La diferencia conceptual: en cada nodo, en vez de medir "impureza de clase" (gini), se
+  minimiza la <strong>varianza</strong> dentro del grupo resultante; la predicción de una hoja
+  es el <strong>promedio</strong> de <code>csMPa</code> de las muestras que caen ahí. Por eso en
+  el árbol dibujado cada hoja muestra <code>valor = X.XX</code> en vez de una clase.</p>
+  <p>Las gráficas de "árboles vs. tiempo vs. accuracy" se repiten aquí pero mostrando R² en vez
+  de accuracy, y la matriz de confusión se reemplaza por el gráfico de <strong>real vs.
+  predicho</strong> descrito en la sección de métricas.</p>
+</section>
+
+<section id="knn">
+  <h2>9. KNN (K vecinos más cercanos)</h2>
+  <pre><code>from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+
+modelo = KNeighborsClassifier(n_neighbors=5, weights="distance")
+modelo.fit(X_train_esc, y_train)     # "entrenar" = solo guardar los datos
+pred = modelo.predict(X_test_esc)    # predecir = comparar contra TODO lo guardado</code></pre>
+  <p>KNN es distinto a todo lo anterior: no aprende una estructura fija, sino que guarda todos
+  los datos y, al predecir un punto nuevo, busca sus K vecinos más cercanos (por distancia
+  euclidiana) y vota la clase mayoritaria entre ellos. Por eso <strong>requiere datos
+  estandarizados</strong> (sección de preprocesamiento) — de lo contrario, una variable con
+  rango grande como <code>rainfall</code> dominaría el cálculo de distancia.</p>
+  <p>Para elegir K se usa validación cruzada (<code>cross_val_score</code>, que entrena y
+  evalúa el modelo varias veces con distintos subconjuntos de los datos de entrenamiento, para
+  obtener una estimación más confiable que una sola partición):</p>
+  <pre><code>for k in range(1, 26):
+    modelo = KNeighborsClassifier(n_neighbors=k)
+    score = cross_val_score(modelo, X_train_esc, y_train, cv=5).mean()</code></pre>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: K vs. accuracy (validación cruzada)</h4>
+    <p>Eje X = valor de K probado (1 a 25), eje Y = accuracy promedio de validación cruzada.
+    <strong>Cómo leerla:</strong> normalmente empieza alta en K bajo, puede bajar un poco y
+    luego decrece progresivamente en K muy altos (subajuste: promedia con vecinos demasiado
+    lejanos/irrelevantes). El punto elegido (marcado con línea verde) es el mejor equilibrio.
+    En este proyecto, K=1 resultó ganador porque el dataset de cultivos tiene clases muy bien
+    separadas — poco riesgo de "memorizar ruido" porque casi no hay ruido.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: comparación de ponderaciones</h4>
+    <p>Tabla comparando accuracy con <code>weights='uniform'</code> (todos los vecinos votan
+    igual) vs. <code>'distance'</code> (los más cercanos pesan más) vs. variables ponderadas
+    manualmente por su importancia (usando un Random Forest como referencia). Sirve para ver si
+    darle más peso a ciertas variables (como <code>rainfall</code> o <code>humidity</code>, que
+    resultaron ser las más discriminantes) mejora el resultado.</p>
+  </div>
+</section>
+
+<section id="clustering">
+  <h2>10. Clustering (K-means)</h2>
+  <pre><code>from sklearn.cluster import KMeans
+
+# Nótese: y (la columna 'label') NO se usa aquí, solo X
+modelo = KMeans(n_clusters=22, random_state=42, n_init=10)
+clusters = modelo.fit_predict(X_esc)   # asigna cada fila a un cluster (0, 1, 2...)</code></pre>
+  <p>K-means es aprendizaje <strong>no supervisado</strong>: recibe solo las variables
+  numéricas (sin <code>label</code>) y agrupa por similitud, sin saber qué cultivo es cada uno.
+  La columna <code>label</code> se usa DESPUÉS, únicamente para evaluar qué tan bien esos grupos
+  coinciden con los cultivos reales.</p>
+  <p>El algoritmo itera 4 pasos: (1) elige K centroides iniciales, (2) asigna cada punto al
+  centroide más cercano, (3) recalcula cada centroide como el promedio de los puntos que le
+  tocaron, (4) repite 2-3 hasta que los centroides casi no se muevan (convergencia).</p>
+
+  <div class="grafica">
+    <h4>📊 Gráfica: codo, silueta y Davies-Bouldin (3 técnicas para elegir K)</h4>
+    <p><strong>Codo (inercia):</strong> eje Y = suma de distancias al cuadrado de cada punto a
+    su centroide; baja siempre que K sube, se busca el "codo" donde deja de bajar bruscamente.
+    <strong>Silueta:</strong> va de -1 a 1, más alto es mejor (cada punto se parece más a su
+    propio cluster que al más cercano); se busca el K que la maximiza.
+    <strong>Davies-Bouldin:</strong> más bajo es mejor (compara qué tan compactos son los
+    clusters contra qué tan separados están entre sí). En este proyecto, las 3 técnicas
+    sugieren K bajo (~2), muy lejos de las 22 clases reales — evidencia de que varios cultivos
+    comparten condiciones de suelo/clima parecidas.</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: convergencia de los centroides</h4>
+    <p>Eje X = número de iteración, eje Y = cuánto se movieron los centroides respecto a la
+    iteración anterior. Debe ir bajando hasta acercarse a cero — eso significa que el algoritmo
+    ya encontró una posición estable para los centroides (convergió).</p>
+  </div>
+  <div class="grafica">
+    <h4>📊 Gráfica: matriz de confusión (clusters vs. clases reales)</h4>
+    <p>Igual que la matriz de confusión de clasificación, pero las "predicciones" son los
+    clusters (después de emparejar cada cluster con su clase real mayoritaria, usando el
+    algoritmo húngaro para el emparejamiento óptimo). Con K=22, se logró un 75% de coincidencia
+    con los cultivos reales — sorprendentemente bueno para un método que nunca vio las
+    etiquetas.</p>
+  </div>
+</section>
+
+<section id="sobreajuste">
+  <h2>11. Comparación con ruido: sobreajuste vs. buen ajuste vs. subajuste</h2>
+  <p>Con el dataset de cultivos (limpio, clases bien separadas) un árbol sin restricciones casi
+  no sobreajusta — no porque no pueda, sino porque no hay ruido que memorizar. Para verlo de
+  verdad, se inyecta ruido artificial en las etiquetas de ENTRENAMIENTO (el test queda limpio):</p>
+  <pre><code>rng = np.random.RandomState(semilla)
+n_ruido = int(len(y_train) * porcentaje_ruido / 100)
+idx_ruido = rng.choice(len(y_train), size=n_ruido, replace=False)
+for idx in idx_ruido:
+    y_train_ruidoso[idx] = rng.choice([clases distintas a la original])</code></pre>
+  <p>Con 25% de ruido, los resultados reales obtenidos en este proyecto:</p>
+  <table>
+    <thead><tr><th>Modelo</th><th>Accuracy train (con ruido)</th><th>Accuracy test (limpio)</th><th>Gap</th></tr></thead>
+    <tbody>
+      <tr><td>🔴 Sobreajustado (sin restricción)</td><td>100%</td><td>66.6%</td><td>+33.4%</td></tr>
+      <tr><td>🟢 Bien ajustado (podado por validación cruzada)</td><td>74.0%</td><td>94.5%</td><td>-20.5%</td></tr>
+      <tr><td>🟡 Subajustado (max_depth=1)</td><td>9.1%</td><td>9.1%</td><td>≈0%</td></tr>
+      <tr><td>🌲 Random Forest (200 árboles)</td><td>100%</td><td>99.1%</td><td>+0.9%</td></tr>
+    </tbody>
+  </table>
+  <div class="grafica">
+    <h4>📊 Gráfica: barras train vs. test por estrategia</h4>
+    <p>Cada estrategia tiene dos barras: café (train con ruido) y verde (test limpio). Entre
+    más grande la barra café comparada con la verde, más está memorizando ruido en vez de
+    generalizar — eso ES el sobreajuste, visualmente. El Random Forest, aunque cada uno de sus
+    200 árboles individuales crece sin restricción (como el "sobreajustado"), casi no muestra
+    ese hueco: promediar muchos árboles entrenados con submuestras distintas diluye el efecto
+    del ruido — esa es la razón concreta por la que un bosque resiste mejor el sobreajuste que
+    un solo árbol.</p>
+  </div>
+</section>
+
+<section id="leer-graficas">
+  <h2>12. Guía rápida: cómo leer cada tipo de gráfica</h2>
+  <table>
+    <thead><tr><th>Gráfica</th><th>Ejes / elementos</th><th>Qué buscar</th></tr></thead>
+    <tbody>
+      <tr><td>Matriz de confusión</td><td>Filas=real, columnas=predicho</td>
+          <td>Diagonal = aciertos; fuera de la diagonal = con qué se confunde</td></tr>
+      <tr><td>Árbol dibujado</td><td>Cajas=nodos, flechas Sí/No</td>
+          <td>Gini/mse bajo y color sólido = nodo puro; primeras divisiones = variables más importantes</td></tr>
+      <tr><td>Real vs. predicho</td><td>X=valor real, Y=predicho, línea diagonal</td>
+          <td>Puntos pegados a la diagonal = buena predicción</td></tr>
+      <tr><td>K vs. accuracy (KNN)</td><td>X=K, Y=accuracy (CV)</td>
+          <td>Punto más alto = mejor K; caída al final = subajuste con K muy grande</td></tr>
+      <tr><td>Árboles vs. tiempo/accuracy (RF)</td><td>X=n° árboles (log), 2 ejes Y</td>
+          <td>Dónde el accuracy deja de mejorar aunque el tiempo siga subiendo</td></tr>
+      <tr><td>Codo / Silueta / Davies-Bouldin</td><td>X=K probado</td>
+          <td>Codo: quiebre de la curva. Silueta: punto más alto. DB: punto más bajo</td></tr>
+      <tr><td>Convergencia de centroides</td><td>X=iteración, Y=desplazamiento</td>
+          <td>Debe bajar hacia 0 (los centroides dejan de moverse)</td></tr>
+      <tr><td>Importancia de variables</td><td>Barras por variable</td>
+          <td>Barras más altas = variables más determinantes para el modelo</td></tr>
+      <tr><td>Comparación con ruido</td><td>Barras train (café) vs. test (verde)</td>
+          <td>Barra café mucho más alta que la verde = sobreajuste</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="conclusiones">
+  <h2>13. Conclusiones</h2>
+  <ul>
+    <li>El preprocesamiento correcto depende del modelo: árboles/RF no necesitan escalado,
+    KNN/K-means sí (estandarización).</li>
+    <li>Un árbol sin restricciones sobre datos limpios no sobreajusta por sí solo — el
+    sobreajuste aparece cuando hay ruido/casos atípicos que el árbol memoriza en vez de
+    generalizar, y se controla con poda.</li>
+    <li>Random Forest reduce el sobreajuste frente a un árbol individual gracias al bootstrap
+    (cada árbol ve una muestra distinta) y a promediar muchos árboles — se demostró
+    numéricamente comparando el mismo dataset ruidoso.</li>
+    <li>KNN y K-means dependen completamente de la escala de las variables (por eso necesitan
+    estandarización) y de elegir bien sus hiperparámetros (K), para lo cual se usan validación
+    cruzada (KNN) o métricas de calidad de clusters (K-means).</li>
+    <li>Las métricas de evaluación deben elegirse según el tipo de problema: accuracy/precision/
+    recall/F1/matriz de confusión para clasificación; MAE/RMSE/R² para regresión.</li>
+  </ul>
+</section>
+
+<footer>Informe generado como material de apoyo para la primera entrega de Inteligencia Computacional 2.</footer>
+</div>
+</body>
+</html>
