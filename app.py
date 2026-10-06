@@ -20,6 +20,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.tree import (
     DecisionTreeClassifier, DecisionTreeRegressor, plot_tree, _tree
 )
@@ -39,14 +41,293 @@ from sklearn.model_selection import (
 )
 from scipy.optimize import linear_sum_assignment
 
-from preprocesamiento import cargar_crop, cargar_concreto, dividir_datos, estandarizar
+from preprocesamiento import cargar_crop, cargar_concreto, dividir_datos, estandarizar, calcular_r2_ajustado
 
 st.set_page_config(page_title="Inteligencia Computacional 2", layout="wide", page_icon="🧠")
 
 
-# ---------------------------------------------------------------------
+# =====================================================================
+# FUNCIONES HELPER PARA GRÁFICOS INTERACTIVOS (Plotly)
+# =====================================================================
+def grafico_confusion_matrix_interactivo(cm, labels, titulo="Matriz de Confusión"):
+    """Crea una matriz de confusión interactiva con Plotly (pasa mouse para ver números)"""
+    fig = go.Figure(data=go.Heatmap(
+        z=cm,
+        x=labels,
+        y=labels,
+        colorscale="Blues",
+        text=cm,
+        texttemplate="%{text}",
+        textfont={"size": 10},
+        hovertemplate="Real: %{y}<br>Predicho: %{x}<br>Cantidad: %{z}<extra></extra>"
+    ))
+    fig.update_layout(
+        title=titulo,
+        xaxis_title="Predicción",
+        yaxis_title="Real",
+        height=600,
+        width=700,
+        template="plotly_white"
+    )
+    return fig
+
+
+def grafico_barras_interactivo(valores, nombres, titulo="", ylabel="", color="#3f7d54"):
+    """Crea un gráfico de barras interactivo (pasa mouse para ver valores)"""
+    fig = go.Figure(data=go.Bar(
+        x=nombres,
+        y=valores,
+        marker_color=color,
+        text=[f"{v:.4f}" for v in valores],
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Valor: %{y:.4f}<extra></extra>"
+    ))
+    fig.update_layout(
+        title=titulo,
+        yaxis_title=ylabel,
+        template="plotly_white",
+        height=500,
+        hovermode="x"
+    )
+    return fig
+
+
+def grafico_scatter_interactivo(x, y, titulo="", xlabel="", ylabel="", labels=None):
+    """Crea un scatter plot interactivo (real vs predicho)"""
+    lim_min = min(min(x), min(y))
+    lim_max = max(max(x), max(y))
+
+    fig = go.Figure()
+
+    # Línea perfecta
+    fig.add_trace(go.Scatter(
+        x=[lim_min, lim_max], y=[lim_min, lim_max],
+        mode="lines",
+        name="Predicción perfecta",
+        line=dict(dash="dash", color="black"),
+        hoverinfo="skip"
+    ))
+
+    # Puntos
+    fig.add_trace(go.Scatter(
+        x=x, y=y,
+        mode="markers",
+        name="Predicciones",
+        marker=dict(size=6, color="#a8552f", opacity=0.6),
+        hovertemplate="Real: %{y:.2f}<br>Predicho: %{x:.2f}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=titulo,
+        xaxis_title=xlabel,
+        yaxis_title=ylabel,
+        template="plotly_white",
+        height=600,
+        width=700,
+        hovermode="closest"
+    )
+    return fig
+
+
+def grafico_validation_curve_interactivo(x_vals, tr_mean, tr_std, te_mean, te_std, titulo="", xlabel=""):
+    """Crea una curva de validación interactiva con bandas de desviación"""
+    fig = go.Figure()
+
+    # Banda train
+    fig.add_trace(go.Scatter(
+        x=list(x_vals) + list(reversed(x_vals)),
+        y=list(tr_mean + tr_std) + list(reversed(tr_mean - tr_std)),
+        fill="toself",
+        fillcolor="rgba(168, 85, 47, 0.2)",
+        line=dict(color="rgba(168, 85, 47, 0)"),
+        hoverinfo="skip",
+        name="Train ± 1 desv"
+    ))
+
+    # Línea train
+    fig.add_trace(go.Scatter(
+        x=x_vals, y=tr_mean,
+        mode="lines+markers",
+        name="Train",
+        line=dict(color="#a8552f", width=2),
+        marker=dict(size=6),
+        hovertemplate="Depth: %{x}<br>R² Train: %{y:.4f}<extra></extra>"
+    ))
+
+    # Banda test
+    fig.add_trace(go.Scatter(
+        x=list(x_vals) + list(reversed(x_vals)),
+        y=list(te_mean + te_std) + list(reversed(te_mean - te_std)),
+        fill="toself",
+        fillcolor="rgba(63, 125, 84, 0.2)",
+        line=dict(color="rgba(63, 125, 84, 0)"),
+        hoverinfo="skip",
+        name="Test ± 1 desv"
+    ))
+
+    # Línea test
+    fig.add_trace(go.Scatter(
+        x=x_vals, y=te_mean,
+        mode="lines+markers",
+        name="Test (CV 5-fold)",
+        line=dict(color="#3f7d54", width=2),
+        marker=dict(size=6),
+        hovertemplate="Depth: %{x}<br>R² Test: %{y:.4f}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=titulo,
+        xaxis_title=xlabel,
+        yaxis_title="R²",
+        template="plotly_white",
+        height=600,
+        width=1000,
+        hovermode="x unified"
+    )
+    return fig
+
+
+def grafico_learning_curve_interactivo(tamanos, tr_mean, tr_std, te_mean, te_std, titulo=""):
+    """Crea una curva de aprendizaje interactiva con bandas de desviación"""
+    fig = go.Figure()
+
+    # Banda train
+    fig.add_trace(go.Scatter(
+        x=list(tamanos) + list(reversed(tamanos)),
+        y=list(tr_mean + tr_std) + list(reversed(tr_mean - tr_std)),
+        fill="toself",
+        fillcolor="rgba(168, 85, 47, 0.2)",
+        line=dict(color="rgba(168, 85, 47, 0)"),
+        hoverinfo="skip",
+        name="Train ± 1 desv"
+    ))
+
+    # Línea train
+    fig.add_trace(go.Scatter(
+        x=tamanos, y=tr_mean,
+        mode="lines+markers",
+        name="Train",
+        line=dict(color="#a8552f", width=2),
+        marker=dict(size=6),
+        hovertemplate="Datos: %{x:.0f}<br>R² Train: %{y:.4f}<extra></extra>"
+    ))
+
+    # Banda test
+    fig.add_trace(go.Scatter(
+        x=list(tamanos) + list(reversed(tamanos)),
+        y=list(te_mean + te_std) + list(reversed(te_mean - te_std)),
+        fill="toself",
+        fillcolor="rgba(63, 125, 84, 0.2)",
+        line=dict(color="rgba(63, 125, 84, 0)"),
+        hoverinfo="skip",
+        name="Test ± 1 desv"
+    ))
+
+    # Línea test
+    fig.add_trace(go.Scatter(
+        x=tamanos, y=te_mean,
+        mode="lines+markers",
+        name="Test (CV 5-fold)",
+        line=dict(color="#3f7d54", width=2),
+        marker=dict(size=6),
+        hovertemplate="Datos: %{x:.0f}<br>R² Test: %{y:.4f}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=titulo,
+        xaxis_title="Cantidad de datos de entrenamiento",
+        yaxis_title="R²",
+        template="plotly_white",
+        height=600,
+        width=1000,
+        hovermode="x unified"
+    )
+    return fig
+
+
+def grafico_pca_clusters_interactivo(X_2d, clusters, cent_2d, var_exp, k_cluster):
+    """Crea scatter plot interactivo de clusters en PCA"""
+    # Paleta de 20 colores
+    colores_tab20 = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+        "#c49c94", "#f7b6d2", "#c7c7c7", "#dbbd22", "#9edae5"
+    ]
+
+    fig = go.Figure()
+
+    # Scatter de puntos (con color por cluster % 20)
+    colores_puntos = [colores_tab20[c % 20] for c in clusters]
+    fig.add_trace(go.Scatter(
+        x=X_2d[:, 0], y=X_2d[:, 1],
+        mode="markers",
+        marker=dict(size=6, color=colores_puntos, opacity=0.7),
+        text=[f"Cluster {c}" for c in clusters],
+        hovertemplate="PC1: %{x:.2f}<br>PC2: %{y:.2f}<br>%{text}<extra></extra>",
+        name="Puntos de datos"
+    ))
+
+    # Scatter de centroides
+    fig.add_trace(go.Scatter(
+        x=cent_2d[:, 0], y=cent_2d[:, 1],
+        mode="markers",
+        marker=dict(size=15, color="black", symbol="x", line=dict(color="white", width=2)),
+        text=[f"Centroide {i}" for i in range(len(cent_2d))],
+        hovertemplate="PC1: %{x:.2f}<br>PC2: %{y:.2f}<br>%{text}<extra></extra>",
+        name="Centroides"
+    ))
+
+    fig.update_layout(
+        title=f"Clusters de K-means (K={k_cluster}) - Vista PCA (INTERACTIVO)",
+        xaxis_title=f"PC1 ({var_exp[0]:.1%} de la varianza)",
+        yaxis_title=f"PC2 ({var_exp[1]:.1%} de la varianza)",
+        template="plotly_white",
+        height=600,
+        width=900,
+        hovermode="closest"
+    )
+    return fig
+
+
+def grafico_pca_cultivos_interactivo(X_2d, y_idx, cultivos, var_exp):
+    """Crea scatter plot interactivo de cultivos reales en PCA"""
+    # Paleta de 20 colores
+    colores_tab20 = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+        "#c49c94", "#f7b6d2", "#c7c7c7", "#dbbd22", "#9edae5"
+    ]
+
+    fig = go.Figure()
+
+    # Scatter de puntos (con color por cultivo real % 20)
+    colores_puntos = [colores_tab20[y % 20] for y in y_idx]
+    fig.add_trace(go.Scatter(
+        x=X_2d[:, 0], y=X_2d[:, 1],
+        mode="markers",
+        marker=dict(size=6, color=colores_puntos, opacity=0.7),
+        text=[f"Cultivo: {cultivos[y]}" for y in y_idx],
+        hovertemplate="PC1: %{x:.2f}<br>PC2: %{y:.2f}<br>%{text}<extra></extra>",
+        name="Cultivos"
+    ))
+
+    fig.update_layout(
+        title="Cultivos reales - Vista PCA (INTERACTIVO)",
+        xaxis_title=f"PC1 ({var_exp[0]:.1%} de la varianza)",
+        yaxis_title=f"PC2 ({var_exp[1]:.1%} de la varianza)",
+        template="plotly_white",
+        height=600,
+        width=900,
+        hovermode="closest"
+    )
+    return fig
+
+
+# =====================================================================
 # Funciones auxiliares reutilizadas en varias pestañas
-# ---------------------------------------------------------------------
+# =====================================================================
 def mostrar_reporte_clasificacion(y_test, pred_test, titulo="Reporte de métricas por clase"):
     """Muestra precisión, recall y F1-score por clase (no solo accuracy global)."""
     reporte = classification_report(y_test, pred_test, output_dict=True, zero_division=0)
@@ -552,12 +833,11 @@ with tabs[0]:
                               index=[f"Real: {nombres_es[c]}" for c in cultivos_ejemplo],
                               columns=[f"Predijo: {nombres_es[c]}" for c in cultivos_ejemplo])
 
-        fig, ax = plt.subplots(figsize=(5, 4))
-        sns.heatmap(cm_ej, annot=True, fmt="d", cmap="Oranges",
-                    xticklabels=[nombres_es[c] for c in cultivos_ejemplo],
-                    yticklabels=[nombres_es[c] for c in cultivos_ejemplo], ax=ax)
-        ax.set_xlabel("Predicción"); ax.set_ylabel("Real")
-        st.pyplot(fig)
+        # Gráfico interactivo con Plotly
+        labels_es = [nombres_es[c] for c in cultivos_ejemplo]
+        fig_cm = grafico_confusion_matrix_interactivo(cm_ej, labels_es,
+                                                       titulo="Matriz de Confusión - Ejemplo (INTERACTIVA)")
+        st.plotly_chart(fig_cm, use_container_width=True)
         st.dataframe(cm_df, use_container_width=True)
 
         st.markdown("**¿Cómo se interpreta?**")
@@ -694,18 +974,45 @@ with tabs[1]:
             tabla_mi["% respecto a la mejor variable"] = (mi_serie.values / mi_serie.max() * 100).round(1)
         st.dataframe(tabla_mi, hide_index=True, use_container_width=True)
 
-        fig_mi, ax_mi = plt.subplots(figsize=(8, 4.5))
-        ax_mi.barh(mi_serie.index[::-1], mi_serie.values[::-1], color="#3f7d54", edgecolor="white")
-        for i, v in enumerate(mi_serie.values[::-1]):
-            ax_mi.text(v + mi_serie.max() * 0.01, i, f"{v:.3f}", va="center", fontsize=9)
+        # Gráfico interactivo con Plotly (pasa mouse para ver valores)
+        import plotly.graph_objects as go
+
+        fig_mi = go.Figure()
+
+        # Crear hover text con valores exactos
+        hover_text = [f"<b>{var}</b><br>MI: {val:.4f}<br>% relativo: {(val/mi_serie.max()*100):.1f}%"
+                      for var, val in zip(mi_serie.index[::-1], mi_serie.values[::-1])]
+
+        fig_mi.add_trace(go.Bar(
+            y=mi_serie.index[::-1],
+            x=mi_serie.values[::-1],
+            orientation='h',
+            marker=dict(color="#3f7d54"),
+            hovertext=hover_text,
+            hoverinfo="text",
+            text=[f"{v:.4f}" for v in mi_serie.values[::-1]],
+            textposition="outside"
+        ))
+
         if h_max is not None:
-            ax_mi.axvline(h_max, color="gray", linestyle="--", linewidth=1,
-                          label=f"Máximo posible = ln({len(np.unique(y_enc_mi))}) = {h_max:.2f}")
-            ax_mi.set_xlim(0, h_max * 1.05)
-            ax_mi.legend(loc="lower right", fontsize=8)
-        ax_mi.set_xlabel("Mutual Information (nats)")
-        ax_mi.set_title(f"Relevancia de cada variable — {ds_mi}")
-        st.pyplot(fig_mi)
+            fig_mi.add_vline(x=h_max, line_dash="dash", line_color="red",
+                            annotation_text=f"Max posible = {h_max:.2f}",
+                            annotation_position="top right")
+            x_max = h_max * 1.2
+        else:
+            x_max = mi_serie.max() * 1.3
+
+        fig_mi.update_layout(
+            title=f"Relevancia de cada variable — {ds_mi} (INTERACTIVO: pasa mouse)",
+            xaxis_title="Mutual Information (nats)",
+            yaxis_title="Variable",
+            template="plotly_white",
+            height=500,
+            hovermode="y",
+            xaxis=dict(range=[0, x_max])
+        )
+
+        st.plotly_chart(fig_mi, use_container_width=True)
         st.caption("Barras más largas = la variable reduce más la incertidumbre sobre el "
                    "objetivo. Compara este orden con el gráfico de 'Importancia de variables' "
                    "del Random Forest: si coinciden, hay evidencia de que esas variables "
@@ -791,11 +1098,11 @@ with tabs[2]:
 
         clases = sorted(y.unique())
         cm = confusion_matrix(y_test, pred_test, labels=clases)
-        fig, ax = plt.subplots(figsize=(9, 7))
-        sns.heatmap(cm, cmap="Oranges", xticklabels=clases, yticklabels=clases, ax=ax)
-        ax.set_xlabel("Predicción"); ax.set_ylabel("Real")
-        plt.xticks(rotation=90); plt.yticks(rotation=0)
-        st.pyplot(fig)
+
+        # Gráfico interactivo con Plotly
+        fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
+                                                       titulo="Matriz de Confusión - Árbol de Decisión (INTERACTIVA)")
+        st.plotly_chart(fig_cm, use_container_width=True)
         st.caption("La matriz de confusión muestra en qué cultivos se equivoca el árbol "
                    "(normalmente entre leguminosas con requerimientos de suelo parecidos).")
 
@@ -1062,19 +1369,20 @@ with tabs[3]:
 
         clases = sorted(y.unique())
         cm = confusion_matrix(y_test, pred_test, labels=clases)
-        fig, ax = plt.subplots(figsize=(9, 7))
-        sns.heatmap(cm, cmap="Blues", xticklabels=clases, yticklabels=clases, ax=ax)
-        plt.xticks(rotation=90); plt.yticks(rotation=0)
-        st.pyplot(fig)
+
+        # Gráfico interactivo con Plotly
+        fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
+                                                       titulo="Matriz de Confusión - Random Forest (INTERACTIVA)")
+        st.plotly_chart(fig_cm, use_container_width=True)
 
         mostrar_reporte_clasificacion(y_test, pred_test, "Precisión, recall y F1 por cultivo")
 
-        st.markdown("**Importancia de variables (promediada entre todos los árboles del bosque)**")
+        st.markdown("**Importancia de variables (promediada entre todos los árboles del bosque) - INTERACTIVO**")
         importancias = pd.Series(modelo.feature_importances_, index=X.columns).sort_values(ascending=False)
-        fig_imp, ax_imp = plt.subplots(figsize=(7, 3.5))
-        importancias.plot(kind="bar", color="#3f5f7d", ax=ax_imp)
-        ax_imp.set_ylabel("Importancia")
-        st.pyplot(fig_imp)
+        fig_imp = grafico_barras_interactivo(importancias.values, importancias.index,
+                                             titulo="Importancia de Variables - Random Forest",
+                                             ylabel="Importancia", color="#3f5f7d")
+        st.plotly_chart(fig_imp, use_container_width=True)
         st.caption("Cada árbol vota con variables ligeramente distintas; esta importancia "
                    "es el promedio de cuánto contribuyó cada variable a reducir la impureza "
                    "en TODOS los árboles del bosque.")
@@ -1186,27 +1494,31 @@ with tabs[4]:
         r2 = r2_score(y_test, pred_test)
         r2_train = r2_score(y_train, pred_train)
 
+        n_features = X_test.shape[1]
+        r2_adj = calcular_r2_ajustado(r2, len(y_test), n_features)
+        r2_adj_train = calcular_r2_ajustado(r2_train, len(y_train), n_features)
+
         st.markdown(f"**Partición de datos:** {len(X_train)} registros de entrenamiento (80%) · "
                     f"{len(X_test)} registros de prueba (20%)")
 
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Tiempo", f"{tiempo:.4f} s")
         c2.metric("MAE", f"{mae:.2f} MPa")
         c3.metric("RMSE", f"{rmse:.2f} MPa")
         c4.metric("R² test", f"{r2:.4f}")
+        c5.metric("R² Adj test", f"{r2_adj:.4f}")
 
         if r2_train - r2 > 0.15:
-            st.warning(f"⚠ Posible sobreajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}).")
+            st.warning(f"⚠ Posible sobreajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}, R² Adj train={r2_adj_train:.3f} vs R² Adj test={r2_adj:.3f}).")
         else:
-            st.success(f"✔ Buen ajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}).")
+            st.success(f"✔ Buen ajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}, R² Adj train={r2_adj_train:.3f} vs R² Adj test={r2_adj:.3f}).")
 
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.scatter(y_test, pred_test, alpha=0.5, color="#a8552f")
-        lim = [min(y_test.min(), pred_test.min()), max(y_test.max(), pred_test.max())]
-        ax.plot(lim, lim, "k--", label="Predicción perfecta")
-        ax.set_xlabel("csMPa real"); ax.set_ylabel("csMPa predicho")
-        ax.legend()
-        st.pyplot(fig)
+        # Gráfico interactivo con Plotly
+        fig = grafico_scatter_interactivo(pred_test, y_test,
+                                          titulo="Real vs Predicho - Regresión (INTERACTIVO)",
+                                          xlabel="csMPa predicho",
+                                          ylabel="csMPa real")
+        st.plotly_chart(fig, use_container_width=True)
 
         if modelo_tipo == "Árbol de decisión":
             mostrar_arbol(modelo, X.columns.tolist(), titulo="Árbol de regresión completo (concreto)",
@@ -1214,12 +1526,12 @@ with tabs[4]:
             st.caption("En cada hoja se ve el `value` = predicción de csMPa para las "
                        "muestras que caen ahí (es un promedio, no una clase).")
         else:
-            st.markdown("**Importancia de variables (Random Forest)**")
+            st.markdown("**Importancia de variables (Random Forest) - INTERACTIVO**")
             importancias = pd.Series(modelo.feature_importances_, index=X.columns).sort_values(ascending=False)
-            fig_imp, ax_imp = plt.subplots(figsize=(7, 3.5))
-            importancias.plot(kind="bar", color="#3f5f7d", ax=ax_imp)
-            ax_imp.set_ylabel("Importancia")
-            st.pyplot(fig_imp)
+            fig_imp = grafico_barras_interactivo(importancias.values, importancias.index,
+                                                 titulo="Importancia de Variables - Random Forest Regresión",
+                                                 ylabel="Importancia", color="#3f5f7d")
+            st.plotly_chart(fig_imp, use_container_width=True)
 
             st.markdown("**Un árbol individual dentro del bosque (completo)**")
             idx_arbol_r = st.number_input(f"Ver el árbol N° (0 a {n_arboles_r - 1})",
@@ -1259,14 +1571,17 @@ with tabs[4]:
                 modelo.fit(Xtr, ytr)
                 t = time.time() - inicio
                 pred_te = modelo.predict(Xte)
+                r2_te = r2_score(yte, pred_te)
+                r2_adj_te = calcular_r2_ajustado(r2_te, len(yte), Xte.shape[1])
                 filas.append({
                     "Modelo": nombre,
                     "% Train": f"{(1-ts):.0%}", "% Test": f"{ts:.0%}",
-                    "Registros train": len(Xtr), "Registros test": len(Xte),
+                    "Registros test": len(Xte),
                     "Tiempo (s)": round(t, 4),
                     "MAE": round(mean_absolute_error(yte, pred_te), 2),
                     "RMSE": round(np.sqrt(mean_squared_error(yte, pred_te)), 2),
-                    "R² test": round(r2_score(yte, pred_te), 4),
+                    "R² test": round(r2_te, 4),
+                    "R² Adj test": round(r2_adj_te, 4),
                 })
         st.dataframe(pd.DataFrame(filas), hide_index=True, use_container_width=True)
 
@@ -1279,14 +1594,17 @@ with tabs[4]:
                 m.fit(Xtr, ytr)
                 t = time.time() - inicio
                 pred_te = m.predict(Xte)
+                r2_te = r2_score(yte, pred_te)
+                r2_adj_te = calcular_r2_ajustado(r2_te, len(yte), Xte.shape[1])
                 filas_rf.append({
                     "N° árboles": n,
                     "% Train": "80%", "% Test": "20%",
-                    "Registros train": len(Xtr), "Registros test": len(Xte),
+                    "Registros test": len(Xte),
                     "Tiempo (s)": round(t, 4),
                     "MAE": round(mean_absolute_error(yte, pred_te), 2),
                     "RMSE": round(np.sqrt(mean_squared_error(yte, pred_te)), 2),
-                    "R² test": round(r2_score(yte, pred_te), 4),
+                    "R² test": round(r2_te, 4),
+                    "R² Adj test": round(r2_adj_te, 4),
                 })
         st.dataframe(pd.DataFrame(filas_rf), hide_index=True, use_container_width=True)
 
@@ -1334,20 +1652,12 @@ with tabs[4]:
         umbral = te_m[i_mejor] - te_s[i_mejor]
         prof_ok = next(d for d, m in zip(profundidades, te_m) if m >= umbral)
 
-        fig_vc, ax_vc = plt.subplots(figsize=(9, 5))
-        ax_vc.plot(profundidades, tr_m, marker="o", color="#a8552f", label="Train")
-        ax_vc.fill_between(profundidades, tr_m - tr_s, tr_m + tr_s, color="#a8552f", alpha=0.15)
-        ax_vc.plot(profundidades, te_m, marker="o", color="#3f7d54", label="Test (validación cruzada)")
-        ax_vc.fill_between(profundidades, te_m - te_s, te_m + te_s, color="#3f7d54", alpha=0.15)
-        ax_vc.axvspan(0.5, 3.5, color="#f0c040", alpha=0.15, label="Zona de subajuste")
-        ax_vc.axvline(prof_ok, color="#3f5f7d", linestyle="--", label=f"Bien ajustado (depth={prof_ok})")
-        ax_vc.axvspan(prof_ok + 3, 20.5, color="#c0392b", alpha=0.08, label="Zona de sobreajuste (brecha grande)")
-        ax_vc.set_xlabel("max_depth (complejidad del árbol)")
-        ax_vc.set_ylabel("R²")
-        ax_vc.set_xticks(profundidades)
-        ax_vc.set_title("Curva de complejidad — árbol de regresión (concreto)")
-        ax_vc.legend(loc="center right", fontsize=8)
-        st.pyplot(fig_vc)
+        fig_vc = grafico_validation_curve_interactivo(
+            profundidades, tr_m, tr_s, te_m, te_s,
+            titulo="Curva de complejidad — árbol de regresión (concreto)",
+            xlabel="max_depth (complejidad del árbol)"
+        )
+        st.plotly_chart(fig_vc, use_container_width=True)
         st.caption(f"Con profundidad {prof_ok} el test ya está dentro de 1 desviación del mejor "
                    f"resultado posible (profundidad {profundidades[i_mejor]}); ir más allá agranda "
                    f"la brecha (train llega a {tr_m[-1]:.3f}, test se queda en {te_m[-1]:.3f}) "
@@ -1358,16 +1668,12 @@ with tabs[4]:
             tamanos, tr_lc, te_lc = learning_curve(
                 DecisionTreeRegressor(random_state=42), Xc, yc,
                 train_sizes=np.linspace(0.1, 1.0, 8), cv=cv5, scoring="r2")
-        fig_lc, ax_lc = plt.subplots(figsize=(9, 5))
-        ax_lc.plot(tamanos, tr_lc.mean(axis=1), marker="o", color="#a8552f", label="Train")
-        ax_lc.plot(tamanos, te_lc.mean(axis=1), marker="o", color="#3f7d54", label="Test (validación cruzada)")
-        ax_lc.fill_between(tamanos, te_lc.mean(axis=1) - te_lc.std(axis=1),
-                           te_lc.mean(axis=1) + te_lc.std(axis=1), color="#3f7d54", alpha=0.15)
-        ax_lc.set_xlabel("Cantidad de datos de entrenamiento")
-        ax_lc.set_ylabel("R²")
-        ax_lc.set_title("Curva de aprendizaje — árbol SIN restricciones (concreto)")
-        ax_lc.legend()
-        st.pyplot(fig_lc)
+        fig_lc = grafico_learning_curve_interactivo(
+            tamanos, tr_lc.mean(axis=1), tr_lc.std(axis=1),
+            te_lc.mean(axis=1), te_lc.std(axis=1),
+            titulo="Curva de aprendizaje — árbol SIN restricciones (concreto)"
+        )
+        st.plotly_chart(fig_lc, use_container_width=True)
         st.caption(f"Con solo {int(tamanos[0])} datos el árbol memoriza todo (train "
                    f"{tr_lc.mean(axis=1)[0]:.2f}) y en test saca {te_lc.mean(axis=1)[0]:.2f}. "
                    "La brecha se va cerrando al añadir datos, pero no desaparece: con estos "
@@ -1506,10 +1812,11 @@ with tabs[5]:
 
         clases = sorted(y.unique())
         cm = confusion_matrix(y_test, pred_test, labels=clases)
-        fig2, ax2 = plt.subplots(figsize=(9, 7))
-        sns.heatmap(cm, cmap="Greens", xticklabels=clases, yticklabels=clases, ax=ax2)
-        plt.xticks(rotation=90); plt.yticks(rotation=0)
-        st.pyplot(fig2)
+
+        # Gráfico interactivo con Plotly
+        fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
+                                                       titulo="Matriz de Confusión - KNN (INTERACTIVA)")
+        st.plotly_chart(fig_cm, use_container_width=True)
 
         mostrar_reporte_clasificacion(y_test, pred_test, "Precisión, recall y F1 por cultivo")
 
@@ -1601,10 +1908,11 @@ with tabs[6]:
                    "(después de emparejar cada cluster con su clase mayoritaria).")
 
         cm = confusion_matrix(y, pred_labels, labels=clases)
-        fig, ax = plt.subplots(figsize=(9, 7))
-        sns.heatmap(cm, cmap="Purples", xticklabels=clases, yticklabels=clases, ax=ax)
-        plt.xticks(rotation=90); plt.yticks(rotation=0)
-        st.pyplot(fig)
+
+        # Gráfico interactivo con Plotly
+        fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
+                                                       titulo="Matriz de Confusión - K-Means vs Clases Reales (INTERACTIVA)")
+        st.plotly_chart(fig_cm, use_container_width=True)
 
         # --- Vista 2D de los clusters con PCA (idea tomada del proyecto de referencia) ---
         st.markdown("**Vista 2D de los clusters (PCA) con sus centroides**")
@@ -1628,18 +1936,14 @@ with tabs[6]:
         cent_2d = pca.transform(modelo.cluster_centers_)
         var_exp = pca.explained_variance_ratio_
 
-        fig_pca, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(14, 6))
-        ax_a.scatter(X_2d[:, 0], X_2d[:, 1], c=clusters % 20, cmap="tab20", s=12, alpha=0.7)
-        ax_a.scatter(cent_2d[:, 0], cent_2d[:, 1], c="black", marker="X", s=140,
-                     edgecolors="white", linewidths=1.2, label="Centroides")
-        ax_a.set_title(f"Clusters de K-means (K={k_cluster})")
-        ax_a.legend()
-        ax_b.scatter(X_2d[:, 0], X_2d[:, 1], c=y_idx % 20, cmap="tab20", s=12, alpha=0.7)
-        ax_b.set_title("Cultivos reales")
-        for a in (ax_a, ax_b):
-            a.set_xlabel(f"PC1 ({var_exp[0]:.1%} de la varianza)")
-            a.set_ylabel(f"PC2 ({var_exp[1]:.1%} de la varianza)")
-        st.pyplot(fig_pca)
+        # Dos gráficos interactivos lado a lado
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_pca_clusters = grafico_pca_clusters_interactivo(X_2d, clusters, cent_2d, var_exp, k_cluster)
+            st.plotly_chart(fig_pca_clusters, use_container_width=True)
+        with col2:
+            fig_pca_cultivos = grafico_pca_cultivos_interactivo(X_2d, y_idx, clases, var_exp)
+            st.plotly_chart(fig_pca_cultivos, use_container_width=True)
         st.caption(f"Estos 2 ejes conservan solo el {var_exp.sum():.1%} de la información "
                    "de las 7 variables, así que es normal que algunos grupos se vean "
                    "encimados aunque en 7 dimensiones sí estén separados.")
