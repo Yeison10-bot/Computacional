@@ -13,19 +13,23 @@ DESPUÉS, para evaluar qué tan bien K-means "redescubrió" los cultivos.
   e) Matriz de confusión entre clases reales y clusters
 """
 
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from sklearn.cluster import KMeans
+import numpy as np # Operaciones matriciales, vectores y cálculo de distancias
+import pandas as pd # Manipulación de estructuras de datos (Series y DataFrames)
+import plotly.graph_objects as go # Creación de trazos y gráficos interactivos con Plotly
+from plotly.subplots import make_subplots # Creación de múltiples paneles (subplots) en una sola figura
+from sklearn.cluster import KMeans # Clasificador no supervisado basado en centroides (K-Means)
 from sklearn.metrics import (
-    silhouette_score, davies_bouldin_score, confusion_matrix, accuracy_score
+    silhouette_score,# Métrica interna: Medida de cohesión y separación (-1 a +1, mayor es mejor)
+    davies_bouldin_score, # Métrica interna: Razón de distancias intra/inter cluster (menor es mejor)
+    confusion_matrix, # Evaluación externa: Cruce de coincidencias entre clusters y clases
+    accuracy_score # Evaluación externa: Porcentaje global de aciertos tras el mapeo óptimo
 )
-from scipy.optimize import linear_sum_assignment
-
+from scipy.optimize import linear_sum_assignment # Algoritmo Húngaro para emparejamiento óptimo cluster-clase
+# Importación de funciones de soporte desde módulos locales
 from preprocesamiento import cargar_crop, estandarizar
 from graficos import figura_matriz_confusion, figura_convergencia, guardar_figura
 
+# Rango de valores de K a evaluar de forma automatizada (de 2 a 30 clusters)
 RANGO_K = list(range(2, 31))
 K_REAL = 22  # número real de cultivos, para comparar
 
@@ -34,20 +38,37 @@ K_REAL = 22  # número real de cultivos, para comparar
 # 8.2 Tres técnicas para elegir K
 # ---------------------------------------------------------------------
 def elegir_k(X_esc):
+    """
+    Compara 3 técnicas de evaluación interna para seleccionar el K óptimo:
+    1. Método del Codo (Inercia / WCSS)
+    2. Coeficiente de Silueta (Maximizar cohesión y separación)
+    3. Índice de Davies-Bouldin (Minimizar la razón dispersión/separación)
+    
+    Genera una figura interactiva de 3 paneles para comparar visualmente.
+    """
     print("=== Comparando 3 técnicas para elegir K ===")
     inercias, siluetas, davies_bouldin = [], [], []
-
+    
+    # Iterar sobre el rango de K (2 a 30) calculando las métricas en cada paso
     for k in RANGO_K:
+        # n_init=10 ejecuta K-Means 10 veces con centroides iniciales diferentes y elige la mejor inercia
         modelo = KMeans(n_clusters=k, random_state=42, n_init=10)
+        
+        # Ajustar el modelo y obtener las etiquetas de cluster para cada punto
+        # fit: Calcula iterativamente los K centroides mediante distancia euclidiana.
+        # predict: Asigna a cada fila de X_esc el ID del cluster más cercano (0 a k-1).
         etiquetas = modelo.fit_predict(X_esc)
+        
+        # Guardar métricas de evaluación interna
         inercias.append(modelo.inertia_)
         siluetas.append(silhouette_score(X_esc, etiquetas))
         davies_bouldin.append(davies_bouldin_score(X_esc, etiquetas))
 
+    # Determinar los K óptimos matemáticos para Silueta y Davies-Bouldin
     k_mejor_silueta = RANGO_K[int(np.argmax(siluetas))]
     k_mejor_db = RANGO_K[int(np.argmin(davies_bouldin))]
 
-    # Gráfico interactivo con Plotly (3 subplots)
+    # --- CONSTRUCCIÓN DEL GRÁFICO INTERACTIVO DE 3 SUBPLOTS ---
     fig = make_subplots(
         rows=1, cols=3,
         subplot_titles=("Metodo del codo (Inercia)", "Coeficiente de silueta", "Indice de Davies-Bouldin")
@@ -87,6 +108,7 @@ def elegir_k(X_esc):
                    hovertemplate="<b>K = %{x}</b><br>Davies-Bouldin = %{y:.4f}<extra></extra>"),
         row=1, col=3
     )
+    # Marcar el punto óptimo (mínimo) con una estrella azul
     fig.add_trace(
         go.Scatter(x=[k_mejor_db], y=[min(davies_bouldin)], mode="markers",
                    marker=dict(size=15, color="blue", symbol="star"),
@@ -96,7 +118,8 @@ def elegir_k(X_esc):
     )
     fig.add_vline(x=K_REAL, line_dash="dash", line_color="gray", annotation_text=f"K real ({K_REAL})",
                   row=1, col=3)
-
+    
+    # Ajustes de etiquetas de ejes X e Y
     fig.update_xaxes(title_text="K", row=1, col=1)
     fig.update_xaxes(title_text="K", row=1, col=2)
     fig.update_xaxes(title_text="K", row=1, col=3)
@@ -105,6 +128,7 @@ def elegir_k(X_esc):
     fig.update_yaxes(title_text="Silhouette score", row=1, col=2)
     fig.update_yaxes(title_text="Davies-Bouldin", row=1, col=3)
 
+    # Configuración del diseño general de la figura
     fig.update_layout(
         title="Seleccion de K para K-means (INTERACTIVO - Pasa mouse sobre puntos)",
         height=600, width=1400,
@@ -113,6 +137,7 @@ def elegir_k(X_esc):
         showlegend=True
     )
 
+    # Guardar las gráficas interactivas y estáticas
     fig.write_html("resultados/clustering_seleccion_k_interactivo.html")
     fig.write_image("resultados/clustering_seleccion_k.png", width=1400, height=600)
     print("Grafico interactivo guardado en: resultados/clustering_seleccion_k_interactivo.html")
@@ -131,7 +156,19 @@ def elegir_k(X_esc):
 # 8.3 K-means: evidencia del movimiento de los centroides
 # ---------------------------------------------------------------------
 def mostrar_evolucion_centroides(X_esc, k=22, n_iter_mostrar=5):
+    """
+    Muestra la evolución iterativa de los centroides en K-Means paso a paso.
+    
+    Proceso:
+    1. Proyecta los datos de 7D a 2D usando PCA únicamente para fines de visualización.
+    2. Ejecuta K-Means limitando manualmente 'max_iter' desde 1 hasta max_iteraciones.
+    3. Traza las trayectorias que recorren los centroides desde su posición inicial
+       aleatoria hasta alcanzar la convergencia.
+    """
+    print(f"\n=== Visualizando la evolución de centroides (K={k}) ===")
     print(f"\n=== Evolución de los centroides (K={k}) ===")
+    
+    # Fijar la semilla aleatoria para seleccionar los K centroides iniciales reproducibles
     rng = np.random.RandomState(42)
     centroides = X_esc[rng.choice(len(X_esc), k, replace=False)].copy()
 
@@ -147,10 +184,13 @@ def mostrar_evolucion_centroides(X_esc, k=22, n_iter_mostrar=5):
             for c in range(k)
         ])
 
+        # Métrica de convergencia: Distancia media recorrida por los centroides en esta iteración
         desplazamiento = np.linalg.norm(nuevos_centroides - centroides, axis=1).mean()
         movimientos.append(desplazamiento)
         print(f"Iteración {iteracion + 1}: desplazamiento promedio de los centroides = "
               f"{desplazamiento:.4f}")
+        
+        # Actualizar la posición de los centroides para la siguiente iteración
         centroides = nuevos_centroides
 
     fig = figura_convergencia(movimientos,
@@ -164,36 +204,62 @@ def mostrar_evolucion_centroides(X_esc, k=22, n_iter_mostrar=5):
 # 8.5 Matriz de confusión entre clases reales y clusters
 # ---------------------------------------------------------------------
 def comparar_con_clases_reales(X_esc, y_real, k=22):
+    """
+    Evalúa el desempeño de K-Means (K=22) comparando sus clusters no supervisados
+    contra las etiquetas verdaderas de cultivos mediante el Algoritmo Húngaro.
+    
+    Proceso:
+    1. Ajusta K-Means con K=22 (el número real de cultivos).
+    2. Convierte las etiquetas de texto 'label' a índices numéricos.
+    3. Construye la matriz de coincidencias y aplica linear_sum_assignment (Algoritmo Húngaro)
+       para encontrar el mapeo óptimo 1 a 1 entre clusters y clases.
+    4. Reasigna las etiquetas de K-Means y calcula la exactitud (Accuracy) global.
+    5. Renderiza y guarda la matriz de confusión reasignada.
+    """
+    print(f"\n=== Evaluación externa con clases reales (K={K_REAL}) ===")
     print(f"\n=== Comparación K-means (K={k}) vs clases reales ===")
+    
+    # Entrenar K-Means con el K real ground truth
     modelo = KMeans(n_clusters=k, random_state=42, n_init=10)
     clusters = modelo.fit_predict(X_esc)
 
     clases = sorted(y_real.unique())
+    # Convertir las etiquetas reales de texto ('label') a índices enteros de 0 a 21
     y_real_idx = y_real.map({c: i for i, c in enumerate(clases)}).to_numpy()
 
     # Asignación óptima cluster -> clase real, usando el algoritmo húngaro
     # sobre la matriz de coincidencias (maximiza el total de aciertos)
     n_clusters = len(set(clusters))
     n_clases = len(clases)
+    
+    # Construir la matriz de coincidencia/costo entre clases reales (filas) y clusters (columnas)
     matriz_coincidencias = np.zeros((n_clusters, n_clases), dtype=int)
     for c, real in zip(clusters, y_real_idx):
         matriz_coincidencias[c, real] += 1
 
+    # Aplicar el Algoritmo Húngaro para resolver la asignación óptima cluster-clase
+    # Se pasa la matriz con signo negativo porque linear_sum_assignment minimiza el costo
     filas, columnas = linear_sum_assignment(-matriz_coincidencias)  # maximizar
+    
+    # Crear el diccionario de mapeo óptimo: cluster_id -> clase_real_id
     mapa_cluster_a_clase = {f: columnas[i] for i, f in enumerate(filas)}
-    # Clusters sin pareja (si k != n_clases) se mapean a su clase mayoritaria
+    
+    # Asignar cualquier cluster sobrante (si k > n_clases) a su clase mayoritaria interna
     for c in range(n_clusters):
         if c not in mapa_cluster_a_clase:
             mapa_cluster_a_clase[c] = int(np.argmax(matriz_coincidencias[c]))
 
+    # Convertir las predicciones numéricas a los nombres reales de los cultivos
     clusters_como_clase = np.array([mapa_cluster_a_clase[c] for c in clusters])
     pred_labels = [clases[i] for i in clusters_como_clase]
 
+    # Calcular la exactitud global tras el mapeo no supervisado
     acc = accuracy_score(y_real, pred_labels)
     print(f"Exactitud del clustering al compararlo con las clases reales: {acc:.4f}")
     print("(Esto NO es accuracy de un clasificador supervisado: es qué tan bien "
           "los grupos, sin conocer las clases, terminaron coincidiendo con ellas.)")
 
+    # Matriz de confusión visual utilizando la función del módulo 'graficos'
     cm = confusion_matrix(y_real, pred_labels, labels=clases)
     fig = figura_matriz_confusion(cm, clases, f"Matriz de confusión: clases reales vs clusters (K={k})",
                                   color="Purples", eje_x="Cluster (mapeado a clase mayoritaria)",

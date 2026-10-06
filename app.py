@@ -44,8 +44,62 @@ from scipy.optimize import linear_sum_assignment
 from preprocesamiento import cargar_crop, cargar_concreto, dividir_datos, estandarizar, calcular_r2_ajustado
 from graficos import figura_matriz_confusion, figura_curva_poda
 from regresion import diagnosticar_ajuste
+from knn import VALORES_K, elegir_k_optimo
+from clustering import RANGO_K
 
 st.set_page_config(page_title="Inteligencia Computacional 2", layout="wide", page_icon="🧠")
+
+
+# =====================================================================
+# SELECCIÓN AUTOMÁTICA DE K (se calcula una vez y queda en caché)
+# =====================================================================
+PONDERACION_VARIABLES = "variables ponderadas"
+
+
+@st.cache_data(show_spinner=False)
+def pesos_variables_rf():
+    """Pesos por variable = importancia según un Random Forest entrenado solo con
+    train, normalizada para que el peso promedio sea 1."""
+    X, y, _ = cargar_crop()
+    X_train, X_test, y_train, _ = dividir_datos(X, y, test_size=0.2, estratificar=True)
+    X_train_esc, _, _ = estandarizar(X_train, X_test)
+    rf_ref = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+    rf_ref.fit(X_train_esc, y_train)
+    return rf_ref.feature_importances_ / rf_ref.feature_importances_.mean()
+
+
+@st.cache_data(show_spinner=False)
+def curva_k_knn(ponderacion="uniform"):
+    """Accuracy por validación cruzada (5-fold, solo train) para cada K y el K
+    óptimo. Cuando todos los vecinos votan igual ('uniform' y variables ponderadas)
+    se usa la regla de knn.py (impar más pequeño entre los mejores, para evitar
+    empates); con 'distance' se toma el máximo directamente."""
+    X, y, _ = cargar_crop()
+    X_train, X_test, y_train, _ = dividir_datos(X, y, test_size=0.2, estratificar=True)
+    X_train_esc, _, _ = estandarizar(X_train, X_test)
+    weights = "distance" if ponderacion == "distance" else "uniform"
+    if ponderacion == PONDERACION_VARIABLES:
+        X_train_esc = X_train_esc * pesos_variables_rf()
+    accs = [cross_val_score(KNeighborsClassifier(n_neighbors=kk, weights=weights),
+                            X_train_esc, y_train, cv=5).mean() for kk in VALORES_K]
+    return accs, elegir_k_optimo(VALORES_K, accs, preferir_impar=(weights == "uniform"))
+
+
+@st.cache_data(show_spinner=False)
+def curvas_k_kmeans():
+    """Inercia, silueta y Davies-Bouldin para K=2..30, y el mejor K de cada métrica."""
+    X, _, _ = cargar_crop()
+    X_esc, _, _ = estandarizar(X, X)
+    inercias, siluetas, dbs = [], [], []
+    for kk in RANGO_K:
+        m = KMeans(n_clusters=kk, random_state=42, n_init=10)
+        etq = m.fit_predict(X_esc)
+        inercias.append(m.inertia_)
+        siluetas.append(silhouette_score(X_esc, etq))
+        dbs.append(davies_bouldin_score(X_esc, etq))
+    k_sil = RANGO_K[int(np.argmax(siluetas))]
+    k_db = RANGO_K[int(np.argmin(dbs))]
+    return inercias, siluetas, dbs, k_sil, k_db
 
 
 # =====================================================================
@@ -1780,13 +1834,21 @@ with tabs[5]:
         - **Requiere datos estandarizados**, porque todo se basa en distancias.
         """)
 
-    k = st.slider("K (número de vecinos)", 1, 25, 5, key="knn_k")
-    weights = st.selectbox("Ponderación de vecinos", ["uniform", "distance"])
+    with st.spinner("Cargando..."):
+        _, k_optimo = curva_k_knn("uniform")
+
+    k = st.slider("K (número de vecinos)", 1, 25, k_optimo, key="knn_k")
+    ponderacion = st.selectbox("Ponderación", ["uniform", "distance", PONDERACION_VARIABLES])
+    weights = "distance" if ponderacion == "distance" else "uniform"
 
     if st.button("🔎 Entrenar y evaluar KNN", type="primary"):
         X, y, _ = cargar_crop()
         X_train, X_test, y_train, y_test = dividir_datos(X, y, test_size=0.2, estratificar=True)
         X_train_esc, X_test_esc, _ = estandarizar(X_train, X_test)
+        if ponderacion == PONDERACION_VARIABLES:
+            # Los pesos (Random Forest) se calculan antes de medir el tiempo de KNN
+            pesos = pesos_variables_rf()
+            X_train_esc, X_test_esc = X_train_esc * pesos, X_test_esc * pesos
 
         with st.spinner("Prediciendo..."):
             inicio_fit = time.time()
@@ -1810,16 +1872,21 @@ with tabs[5]:
                    "todo el set guardado. Eso es justo lo que significa que KNN "
                    "'no utiliza un modelo'.")
 
-        with st.spinner("Calculando curva K vs accuracy (validación cruzada, esto sí toma unos segundos)..."):
-            valores_k = list(range(1, 26))
-            accs = [cross_val_score(KNeighborsClassifier(n_neighbors=kk, weights=weights),
-                                     X_train_esc, y_train, cv=5).mean() for kk in valores_k]
+        with st.spinner("Calculando curva K vs accuracy (validación cruzada)..."):
+            accs, k_opt_w = curva_k_knn(ponderacion)
         fig = go.Figure(go.Scatter(
-            x=valores_k, y=accs, mode="lines+markers", name="Accuracy (CV 5-fold)",
+            x=VALORES_K, y=accs, mode="lines+markers", name="Accuracy (CV 5-fold)",
             line=dict(color="#a8552f", width=2.5), marker=dict(size=7),
             hovertemplate="K = %{x}<br>Accuracy = %{y:.4f}<extra></extra>"))
-        fig.add_vline(x=k, line_dash="dash", line_color="green",
-                      annotation_text=f"K elegido = {k}", annotation_position="top")
+        fig.add_trace(go.Scatter(
+            x=[k_opt_w], y=[accs[VALORES_K.index(k_opt_w)]], mode="markers+text",
+            name=f"K óptimo = {k_opt_w}", marker=dict(size=18, color="green", symbol="star"),
+            text=[f"K óptimo = {k_opt_w}"], textposition="middle right",
+            textfont=dict(color="green"),
+            hovertemplate="<b>ÓPTIMO</b><br>K = %{x}<br>Accuracy = %{y:.4f}<extra></extra>"))
+        if k != k_opt_w:
+            fig.add_vline(x=k, line_dash="dash", line_color="gray",
+                          annotation_text=f"K usado = {k}", annotation_position="top")
         fig.update_layout(template="plotly_white", height=420, xaxis_title="K",
                           yaxis_title="Accuracy (validación cruzada)", margin=dict(t=40))
         st.plotly_chart(fig, use_container_width=True)
@@ -1837,6 +1904,29 @@ with tabs[5]:
 
     st.markdown("---")
     st.subheader("Comparar ponderaciones (punto 7d) con el K elegido arriba")
+    with st.expander("📚 ¿Para qué sirve comparar uniform, distance y variables ponderadas?", expanded=True):
+        st.markdown("""
+        El punto 7d pide **dar más peso a ciertas cosas para evitar empates**. Un empate pasa
+        cuando, por ejemplo con K=4, dos vecinos dicen *arroz* y dos dicen *maíz*: el voto no
+        decide. Hay dos lugares donde se puede poner peso, y por eso se comparan 3 estrategias:
+
+        | Estrategia | ¿Qué pesa? | Idea |
+        |---|---|---|
+        | `weights='uniform'` | Nada (línea base) | Cada uno de los K vecinos vale **1 voto**, esté cerca o lejos. |
+        | `weights='distance'` | **Los vecinos** | Cada vecino vota con peso **1 / distancia**: el que está más cerca pesa más. Un empate 2 vs 2 casi nunca queda empatado, porque las distancias casi nunca son iguales. |
+        | Variables ponderadas | **Las variables (columnas)** | Antes de medir distancias, cada variable se multiplica por su importancia (sacada de un Random Forest). Así, una diferencia en una variable muy discriminante (p. ej. `rainfall` o `humidity`, peso ≈ 1.5) aleja más a los puntos que una diferencia en una variable poco útil (p. ej. `ph`, peso ≈ 0.4). |
+
+        **Ejemplo:** un punto nuevo tiene 2 vecinos *arroz* a distancia 0.2 y 0.3, y 2 vecinos
+        *maíz* a distancia 1.5 y 1.8.
+        - `uniform`: 2 votos vs 2 votos → **empate**.
+        - `distance`: arroz = 1/0.2 + 1/0.3 = 8.3 · maíz = 1/1.5 + 1/1.8 = 1.2 → gana **arroz**.
+
+        **Cómo leer el resultado:** si las 3 estrategias dan casi el mismo accuracy, los datos
+        ya están bien separados y la ponderación no aporta mucho. Con **K=1** solo hay un
+        vecino, así que nunca hay empate y `uniform` y `distance` dan **exactamente lo mismo**;
+        para ver la diferencia, prueba con un K par (2, 4, 6) en el slider de arriba.
+        Con K=2, por ejemplo: uniform ≈ 96.8% → distance ≈ 98.0% → variables ponderadas ≈ 98.4%.
+        """)
     if st.button("📊 Comparar uniform vs distance vs variables ponderadas"):
         X, y, _ = cargar_crop()
         X_train, X_test, y_train, y_test = dividir_datos(X, y, test_size=0.2, estratificar=True)
@@ -1850,9 +1940,7 @@ with tabs[5]:
             filas.append({"Estrategia": f"weights='{w}'", "Accuracy test": f"{acc_w:.2%}"})
 
         # Ponderación manual por importancia de variables (Random Forest como proxy)
-        rf_ref = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
-        rf_ref.fit(X_train_esc, y_train)
-        pesos = rf_ref.feature_importances_ / rf_ref.feature_importances_.mean()
+        pesos = pesos_variables_rf()
         m_pond = KNeighborsClassifier(n_neighbors=k)
         m_pond.fit(X_train_esc * pesos, y_train)
         acc_pond = accuracy_score(y_test, m_pond.predict(X_test_esc * pesos))
@@ -1983,21 +2071,8 @@ with tabs[6]:
     st.markdown("---")
     st.subheader("Comparar las 3 técnicas para elegir K")
     if st.button("📐 Calcular codo, silueta y Davies-Bouldin (rango K=2 a 30)"):
-        X, y, _ = cargar_crop()
-        X_esc, _, _ = estandarizar(X, X)
-        rango_k = list(range(2, 31))
-
-        with st.spinner("Probando 29 valores de K... puede tardar unos segundos"):
-            inercias, siluetas, dbs = [], [], []
-            for kk in rango_k:
-                m = KMeans(n_clusters=kk, random_state=42, n_init=10)
-                etq = m.fit_predict(X_esc)
-                inercias.append(m.inertia_)
-                siluetas.append(silhouette_score(X_esc, etq))
-                dbs.append(davies_bouldin_score(X_esc, etq))
-
-        k_sil = rango_k[int(np.argmax(siluetas))]
-        k_db = rango_k[int(np.argmin(dbs))]
+        rango_k = RANGO_K
+        inercias, siluetas, dbs, k_sil, k_db = curvas_k_kmeans()
         fig = make_subplots(rows=1, cols=3, horizontal_spacing=0.07,
                             subplot_titles=("Codo (Inercia)", "Silueta", "Davies-Bouldin"))
         for col, (valores, color, nombre) in enumerate([
@@ -2009,12 +2084,15 @@ with tabs[6]:
                           row=1, col=col)
             fig.add_vline(x=22, line_dash="dash", line_color="gray", row=1, col=col,
                           annotation_text="K real (22)", annotation_font_size=10)
-        fig.add_vline(x=k_sil, line_dash="dot", line_color="green", row=1, col=2,
-                      annotation_text=f"Mejor (K={k_sil})", annotation_position="bottom right",
-                      annotation_font_size=10)
-        fig.add_vline(x=k_db, line_dash="dot", line_color="blue", row=1, col=3,
-                      annotation_text=f"Mejor (K={k_db})", annotation_position="bottom right",
-                      annotation_font_size=10)
+        for col, k_opt, y_opt, color in [(2, k_sil, max(siluetas), "green"),
+                                         (3, k_db, min(dbs), "blue")]:
+            fig.add_trace(go.Scatter(
+                x=[k_opt], y=[y_opt], mode="markers+text",
+                marker=dict(size=16, color=color, symbol="star"),
+                text=[f"K óptimo = {k_opt}"], textposition="middle right",
+                textfont=dict(color=color, size=11),
+                hovertemplate="<b>ÓPTIMO</b><br>K = %{x}<br>Valor = %{y:.4f}<extra></extra>"),
+                row=1, col=col)
         fig.update_xaxes(title_text="K")
         fig.update_layout(template="plotly_white", height=430, showlegend=False, margin=dict(t=50))
         st.plotly_chart(fig, use_container_width=True)

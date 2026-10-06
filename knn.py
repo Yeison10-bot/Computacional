@@ -29,6 +29,19 @@ VALORES_K = list(range(1, 26))  # 1 a 25
 # ---------------------------------------------------------------------
 # 7.2 Selección del valor óptimo de K
 # ---------------------------------------------------------------------
+def elegir_k_optimo(valores_k, accuracies, tolerancia=0.002, preferir_impar=True):
+    """Entre los K con accuracy a menos de `tolerancia` del máximo, prefiere
+    el impar más pequeño (los K impares minimizan empates en la votación).
+    Con preferir_impar=False (weights='distance', donde casi no hay empates)
+    se toma directamente el K de mayor accuracy (el menor, si hay empate)."""
+    mejor_acc = max(accuracies)
+    if not preferir_impar:
+        return valores_k[accuracies.index(mejor_acc)]
+    candidatos = [k for k, a in zip(valores_k, accuracies) if a >= mejor_acc - tolerancia]
+    candidatos_impares = [k for k in candidatos if k % 2 == 1]
+    return min(candidatos_impares) if candidatos_impares else min(candidatos)
+
+
 def seleccionar_mejor_k(X_train_esc, y_train):
     """
     Prueba varios K con validación cruzada (5-fold) sobre el set de
@@ -42,11 +55,7 @@ def seleccionar_mejor_k(X_train_esc, y_train):
         accuracies.append(scores.mean())
         print(f"K={k:2d} -> accuracy promedio (CV) = {scores.mean():.4f}")
 
-    # Preferir K impar entre los mejores candidatos, para minimizar empates
-    mejor_acc = max(accuracies)
-    candidatos = [k for k, a in zip(VALORES_K, accuracies) if a >= mejor_acc - 0.002]
-    candidatos_impares = [k for k in candidatos if k % 2 == 1]
-    mejor_k = min(candidatos_impares) if candidatos_impares else min(candidatos)
+    mejor_k = elegir_k_optimo(VALORES_K, accuracies)
     mejor_acc_val = accuracies[VALORES_K.index(mejor_k)]
 
     # Gráfico interactivo con Plotly
