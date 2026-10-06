@@ -20,12 +20,15 @@ from sklearn.model_selection import train_test_split
 #StandardScaler / MinMaxScaler: son los escaladores.
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import numpy as np
+import os
 
-
+# Rutas relativas a este archivo (no a la carpeta desde donde se ejecuta) y con la
+# "D" mayúscula de la carpeta Data/: en Linux (servidor de despliegue) importa.
+CARPETA_DATOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
 #Base de datos de cultivos (clasificación)
-RUTA_CROP = "data/Crop_recommendation.csv"
+RUTA_CROP = os.path.join(CARPETA_DATOS, "Crop_recommendation.csv")
 #Base de datos de concreto (regresión)
-RUTA_CONCRETO = "data/concreto.csv"
+RUTA_CONCRETO = os.path.join(CARPETA_DATOS, "concreto.csv")
 
 
 def cargar_crop():
