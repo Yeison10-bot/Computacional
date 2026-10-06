@@ -646,18 +646,18 @@ with st.sidebar:
     4. **Random Forest**
     5. **Regresión** (árboles + RF)
     6. **KNN**
-    7. **Clustering (K-means)**
+    7. **K-means** (agrupamiento)
     """)
     st.markdown("---")
     st.caption("Cada botón entrena el modelo EN VIVO con los datos reales. "
                "Nada está precalculado.")
 
 st.title("Proyecto de Inteligencia Computacional 2")
-st.caption("Cultivos (clasificación) · Concreto (regresión) — Árboles, Random Forest, KNN y Clustering")
+st.caption("Cultivos (clasificación) · Concreto (regresión) — Árboles, Random Forest, KNN y K-means")
 
 tabs = st.tabs([
     "📖 Introducción", "⚙️ Preprocesamiento", "🌳 Árboles", "🌲 Random Forest",
-    "📈 Regresión", "🔎 KNN", "🧩 Clustering",
+    "📈 Regresión", "🔎 KNN", "🧩 K-means",
 ])
 
 # =====================================================================
@@ -1955,10 +1955,10 @@ with tabs[5]:
                    "de referencia: las variables más discriminantes pesan más al calcular distancia.")
 
 # =====================================================================
-# TAB 6: CLUSTERING
+# TAB 6: K-MEANS
 # =====================================================================
 with tabs[6]:
-    st.header("Clustering — K-means sobre cultivos")
+    st.header("K-means — Agrupamiento de cultivos")
     with st.expander("📚 Teoría: aprendizaje no supervisado y el centroide", expanded=True):
         st.markdown("""
         Aquí el algoritmo recibe **solo las variables numéricas, sin la columna `label`**, y
