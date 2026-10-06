@@ -1,0 +1,72 @@
+
+======================================================================
+                   0. RESUMEN DE LAS BASES DE DATOS                   
+======================================================================
+Registros: 2200
+Nulos por columna:
+0 nulos en total
+
+Distribución de clases (label):
+label
+rice           100
+maize          100
+chickpea       100
+kidneybeans    100
+pigeonpeas     100
+mothbeans      100
+mungbean       100
+blackgram      100
+lentil         100
+pomegranate    100
+banana         100
+mango          100
+grapes         100
+watermelon     100
+muskmelon      100
+apple          100
+orange         100
+papaya         100
+coconut        100
+cotton         100
+jute           100
+coffee         100
+Name: count, dtype: int64
+Registros: 721
+Nulos por columna:
+0 nulos en total
+
+Estadísticas descriptivas:
+           cement        slag  ...         age       csMPa
+count  721.000000  721.000000  ...  721.000000  721.000000
+mean   280.629681   74.736338  ...   44.951456   36.163148
+std    103.113264   85.698317  ...   60.426508   17.195567
+min    102.000000    0.000000  ...    1.000000    2.330000
+25%    194.700000    0.000000  ...   14.000000   23.350000
+50%    273.000000   24.000000  ...   28.000000   34.570000
+75%    359.000000  142.800000  ...   56.000000   47.710000
+max    540.000000  359.400000  ...  365.000000   82.600000
+
+[8 rows x 9 columns]
+
+======================================================================
+          1. ÁRBOLES DE DECISIÓN (Clasificación - cultivos)           
+======================================================================
+
+--- Modelo 1: Sin restricciones (80/20) ---
+Tiempo de entrenamiento : 0.0164 s
+Accuracy en TRAIN       : 1.0000
+Accuracy en TEST        : 0.9795
+Traceback (most recent call last):
+  File "C:\Users\yeiso\OneDrive\Documentos\COMPUTACIONAL II\Primer Corte\main.py", line 61, in <module>
+    main()
+  File "C:\Users\yeiso\OneDrive\Documentos\COMPUTACIONAL II\Primer Corte\main.py", line 39, in main
+    experimento_arboles()
+  File "C:\Users\yeiso\OneDrive\Documentos\COMPUTACIONAL II\Primer Corte\arboles_decision.py", line 118, in experimento_arboles
+    r1 = entrenar_y_evaluar(m1, X_train, X_test, y_train, y_test,
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yeiso\OneDrive\Documentos\COMPUTACIONAL II\Primer Corte\arboles_decision.py", line 69, in entrenar_y_evaluar
+    print(f"\u2714 Buen ajuste (diferencia train-test = {diferencia:.4f})")
+  File "C:\Users\yeiso\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2714' in position 0: character maps to <undefined>

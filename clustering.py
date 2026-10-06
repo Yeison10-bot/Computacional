@@ -15,8 +15,8 @@ DESPUÉS, para evaluar qué tan bien K-means "redescubrió" los cultivos.
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     silhouette_score, davies_bouldin_score, confusion_matrix, accuracy_score
@@ -24,6 +24,7 @@ from sklearn.metrics import (
 from scipy.optimize import linear_sum_assignment
 
 from preprocesamiento import cargar_crop, estandarizar
+from graficos import figura_matriz_confusion, figura_convergencia, guardar_figura
 
 RANGO_K = list(range(2, 31))
 K_REAL = 22  # número real de cultivos, para comparar
@@ -43,39 +44,79 @@ def elegir_k(X_esc):
         siluetas.append(silhouette_score(X_esc, etiquetas))
         davies_bouldin.append(davies_bouldin_score(X_esc, etiquetas))
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-
-    axes[0].plot(RANGO_K, inercias, marker="o", color="#a8552f")
-    axes[0].axvline(K_REAL, color="gray", linestyle="--", label=f"K real ({K_REAL})")
-    axes[0].set_title("Método del codo (Inercia)")
-    axes[0].set_xlabel("K")
-    axes[0].set_ylabel("Inercia (WCSS)")
-    axes[0].legend()
-
-    axes[1].plot(RANGO_K, siluetas, marker="o", color="#3f7d54")
-    axes[1].axvline(K_REAL, color="gray", linestyle="--", label=f"K real ({K_REAL})")
     k_mejor_silueta = RANGO_K[int(np.argmax(siluetas))]
-    axes[1].axvline(k_mejor_silueta, color="green", linestyle=":",
-                     label=f"Mejor silueta (K={k_mejor_silueta})")
-    axes[1].set_title("Coeficiente de silueta")
-    axes[1].set_xlabel("K")
-    axes[1].set_ylabel("Silhouette score (más alto = mejor)")
-    axes[1].legend()
-
-    axes[2].plot(RANGO_K, davies_bouldin, marker="o", color="#3f5f7d")
-    axes[2].axvline(K_REAL, color="gray", linestyle="--", label=f"K real ({K_REAL})")
     k_mejor_db = RANGO_K[int(np.argmin(davies_bouldin))]
-    axes[2].axvline(k_mejor_db, color="blue", linestyle=":",
-                     label=f"Mejor Davies-Bouldin (K={k_mejor_db})")
-    axes[2].set_title("Índice de Davies-Bouldin")
-    axes[2].set_xlabel("K")
-    axes[2].set_ylabel("Davies-Bouldin (más bajo = mejor)")
-    axes[2].legend()
 
-    plt.tight_layout()
-    plt.savefig("resultados/clustering_seleccion_k.png", dpi=110)
-    plt.close()
-    print("Gráfico guardado en: resultados/clustering_seleccion_k.png")
+    # Gráfico interactivo con Plotly (3 subplots)
+    fig = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=("Metodo del codo (Inercia)", "Coeficiente de silueta", "Indice de Davies-Bouldin")
+    )
+
+    # GRÁFICO 1: Método del codo
+    fig.add_trace(
+        go.Scatter(x=RANGO_K, y=inercias, mode="lines+markers", name="Inercia",
+                   marker=dict(size=8, color="#a8552f"),
+                   hovertemplate="<b>K = %{x}</b><br>Inercia = %{y:.0f}<extra></extra>"),
+        row=1, col=1
+    )
+    fig.add_vline(x=K_REAL, line_dash="dash", line_color="gray", annotation_text=f"K real ({K_REAL})",
+                  row=1, col=1)
+
+    # GRÁFICO 2: Silueta
+    fig.add_trace(
+        go.Scatter(x=RANGO_K, y=siluetas, mode="lines+markers", name="Silueta",
+                   marker=dict(size=8, color="#3f7d54"),
+                   hovertemplate="<b>K = %{x}</b><br>Silueta = %{y:.4f}<extra></extra>"),
+        row=1, col=2
+    )
+    fig.add_trace(
+        go.Scatter(x=[k_mejor_silueta], y=[max(siluetas)], mode="markers",
+                   marker=dict(size=15, color="green", symbol="star"),
+                   hovertemplate="<b>OPTIMO</b><br>K = %{x}<br>Silueta = %{y:.4f}<extra></extra>",
+                   name=f"Optimo K={k_mejor_silueta}"),
+        row=1, col=2
+    )
+    fig.add_vline(x=K_REAL, line_dash="dash", line_color="gray", annotation_text=f"K real ({K_REAL})",
+                  row=1, col=2)
+
+    # GRÁFICO 3: Davies-Bouldin
+    fig.add_trace(
+        go.Scatter(x=RANGO_K, y=davies_bouldin, mode="lines+markers", name="Davies-Bouldin",
+                   marker=dict(size=8, color="#3f5f7d"),
+                   hovertemplate="<b>K = %{x}</b><br>Davies-Bouldin = %{y:.4f}<extra></extra>"),
+        row=1, col=3
+    )
+    fig.add_trace(
+        go.Scatter(x=[k_mejor_db], y=[min(davies_bouldin)], mode="markers",
+                   marker=dict(size=15, color="blue", symbol="star"),
+                   hovertemplate="<b>OPTIMO</b><br>K = %{x}<br>Davies-Bouldin = %{y:.4f}<extra></extra>",
+                   name=f"Optimo K={k_mejor_db}"),
+        row=1, col=3
+    )
+    fig.add_vline(x=K_REAL, line_dash="dash", line_color="gray", annotation_text=f"K real ({K_REAL})",
+                  row=1, col=3)
+
+    fig.update_xaxes(title_text="K", row=1, col=1)
+    fig.update_xaxes(title_text="K", row=1, col=2)
+    fig.update_xaxes(title_text="K", row=1, col=3)
+
+    fig.update_yaxes(title_text="Inercia (WCSS)", row=1, col=1)
+    fig.update_yaxes(title_text="Silhouette score", row=1, col=2)
+    fig.update_yaxes(title_text="Davies-Bouldin", row=1, col=3)
+
+    fig.update_layout(
+        title="Seleccion de K para K-means (INTERACTIVO - Pasa mouse sobre puntos)",
+        height=600, width=1400,
+        template="plotly_white",
+        hovermode="x unified",
+        showlegend=True
+    )
+
+    fig.write_html("resultados/clustering_seleccion_k_interactivo.html")
+    fig.write_image("resultados/clustering_seleccion_k.png", width=1400, height=600)
+    print("Grafico interactivo guardado en: resultados/clustering_seleccion_k_interactivo.html")
+    print("Grafico estatico guardado en: resultados/clustering_seleccion_k.png")
 
     print(f"\nMejor K según silueta         : {k_mejor_silueta}")
     print(f"Mejor K según Davies-Bouldin   : {k_mejor_db}")
@@ -112,15 +153,9 @@ def mostrar_evolucion_centroides(X_esc, k=22, n_iter_mostrar=5):
               f"{desplazamiento:.4f}")
         centroides = nuevos_centroides
 
-    plt.figure(figsize=(7, 4.5))
-    plt.plot(range(1, n_iter_mostrar + 1), movimientos, marker="o", color="#a8552f")
-    plt.xlabel("Iteración")
-    plt.ylabel("Desplazamiento promedio de los centroides")
-    plt.title("Convergencia de K-means: los centroides se mueven cada vez menos")
-    plt.tight_layout()
-    plt.savefig("resultados/clustering_convergencia.png", dpi=110)
-    plt.close()
-    print("Gráfico guardado en: resultados/clustering_convergencia.png")
+    fig = figura_convergencia(movimientos,
+                              "Convergencia de K-means: los centroides se mueven cada vez menos")
+    guardar_figura(fig, "resultados/clustering_convergencia.png", width=900)
     print("(El desplazamiento decrece iteración a iteración: así se ve la "
           "convergencia de K-means hacia centroides estables.)")
 
@@ -160,17 +195,10 @@ def comparar_con_clases_reales(X_esc, y_real, k=22):
           "los grupos, sin conocer las clases, terminaron coincidiendo con ellas.)")
 
     cm = confusion_matrix(y_real, pred_labels, labels=clases)
-    plt.figure(figsize=(11, 9))
-    sns.heatmap(cm, cmap="Purples", xticklabels=clases, yticklabels=clases)
-    plt.title(f"Matriz de confusión: clases reales vs clusters (K={k})")
-    plt.xlabel("Cluster (mapeado a clase mayoritaria)")
-    plt.ylabel("Clase real")
-    plt.xticks(rotation=90)
-    plt.yticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig("resultados/clustering_matriz_confusion.png", dpi=110)
-    plt.close()
-    print("Matriz de confusión guardada en: resultados/clustering_matriz_confusion.png")
+    fig = figura_matriz_confusion(cm, clases, f"Matriz de confusión: clases reales vs clusters (K={k})",
+                                  color="Purples", eje_x="Cluster (mapeado a clase mayoritaria)",
+                                  eje_y="Clase real")
+    guardar_figura(fig, "resultados/clustering_matriz_confusion.png", width=1100)
 
     return acc
 

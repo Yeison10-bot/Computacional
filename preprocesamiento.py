@@ -19,6 +19,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 #StandardScaler / MinMaxScaler: son los escaladores.
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import numpy as np
 
 
 #Base de datos de cultivos (clasificación)
@@ -97,18 +98,34 @@ def escalar_minmax(X_train, X_test):
     return X_train_esc, X_test_esc, scaler
 
 
+def calcular_r2_ajustado(r2, n_muestras, n_features):
+    """
+    Calcula R² Ajustado usando la fórmula:
+    R² Ajustado = 1 - [(1 - R²) × (n - 1) / (n - p - 1)]
+
+    Parámetros:
+      r2: Coeficiente de determinación (R²) tradicional
+      n_muestras: número de observaciones
+      n_features: número de variables predictivas
+
+    Retorna:
+      r2_ajustado: R² penalizado por número de variables
+    """
+    return 1 - ((1 - r2) * (n_muestras - 1) / (n_muestras - n_features - 1))
+
+
 def resumen_distribucion(df, columna_clase=None):
     """Imprime un resumen rápido de la distribución del dataset."""
     # Imprime el número total de filas (registros) del DataFrame.
     print(f"Registros: {len(df)}")
     # Auditoría de limpieza: Cuenta cuántos valores nulos o vacíos hay en todo el DataFrame.
     print(f"Nulos por columna:\n{df.isnull().sum().sum()} nulos en total")
-    # Si se especifica una columna de clase (Clasificación): 
+    # Si se especifica una columna de clase (Clasificación):
     # Muestra cuántos registros existen para cada categoría (conteo de frecuencias).
     if columna_clase:
         print(f"\nDistribución de clases ({columna_clase}):")
         print(df[columna_clase].value_counts())
-    # Si no se especifica columna (Regresión): 
+    # Si no se especifica columna (Regresión):
     # Muestra un resumen estadístico completo (media, min, max, desviación, etc.) de las variables.
     else:
         print(f"\nEstadísticas descriptivas:\n{df.describe()}")

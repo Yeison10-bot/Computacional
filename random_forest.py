@@ -14,14 +14,15 @@ a la escala de las variables.
 
 import time
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from collections import Counter
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
-import seaborn as sns
 
 from preprocesamiento import cargar_crop, dividir_datos
+from graficos import figura_matriz_confusion, guardar_figura
 
 N_ARBOLES = [9, 49, 491]  # impares, para minimizar empates en la votación
 
@@ -68,21 +69,29 @@ def predecir_con_regla_desempate(modelo, X_muestra):
     dura árbol por árbol para mostrar qué pasaría y cómo se resuelve un empate.
     """
     # Voto de cada árbol individual para la primera muestra de X_muestra
-    fila = X_muestra.iloc[[0]].to_numpy()
-    votos = [arbol.predict(fila)[0] for arbol in modelo.estimators_]
+    # Se conservan los nombres de las columnas para que cada árbol reciba la fila
+    # en el mismo formato con el que se entrenó el bosque
+    fila = X_muestra.iloc[[0]]
+    # Ojo: los árboles internos del bosque se entrenan con las clases CODIFICADAS como
+    # índices (0.0, 1.0, ... 21.0), no con los nombres. Por eso su predict devuelve un
+    # índice, que se traduce al nombre del cultivo con modelo.classes_.
+    votos = [modelo.classes_[int(arbol.predict(fila.to_numpy())[0])]
+             for arbol in modelo.estimators_]
     conteo = Counter(votos)
     max_votos = max(conteo.values())
     empatados = [clase for clase, v in conteo.items() if v == max_votos]
 
-    print(f"\nVotos de los primeros árboles: {conteo.most_common(5)}")
+    print(f"\nVotos de los {len(votos)} árboles (top 5): {conteo.most_common(5)}")
     if len(empatados) > 1:
-        print(f"⚠ Empate detectado entre: {empatados}")
+        print(f"[!] Empate detectado entre: {empatados}")
         # Regla de desempate: usar la probabilidad promedio del bosque completo
         # (predict_proba) en vez del conteo de votos duros
         proba = modelo.predict_proba(fila)[0]
-        clases = modelo.classes_
-        proba_empatados = {c: proba[list(clases).index(c)] for c in empatados}
-        ganador = max(proba_empatados, key=proba_empatados.get)
+        indice = {c: i for i, c in enumerate(modelo.classes_)}
+        proba_empatados = {c: proba[indice[c]] for c in empatados}
+        # Si las probabilidades también empatan, max() se queda con la primera clase
+        # empatada; para que sea determinista se ordenan alfabéticamente antes.
+        ganador = max(sorted(proba_empatados), key=proba_empatados.get)
         print(f"Regla de desempate (mayor probabilidad promedio): gana '{ganador}'")
     else:
         print(f"No hay empate. Clase ganadora por votación: '{conteo.most_common(1)[0][0]}'")
@@ -94,40 +103,46 @@ def graficar_tiempos_y_precision(resultados):
     tiempos = [r["tiempo"] for r in resultados]
     acc_test = [r["acc_test"] for r in resultados]
 
-    fig, ax1 = plt.subplots(figsize=(7, 5))
-    color1 = "tab:orange"
-    ax1.set_xlabel("Número de árboles")
-    ax1.set_ylabel("Tiempo de entrenamiento (s)", color=color1)
-    ax1.plot(n_arboles, tiempos, marker="o", color=color1, label="Tiempo")
-    ax1.tick_params(axis="y", labelcolor=color1)
-    ax1.set_xscale("log")
+    # Gráfico interactivo con Plotly
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    ax2 = ax1.twinx()
-    color2 = "tab:blue"
-    ax2.set_ylabel("Accuracy en test", color=color2)
-    ax2.plot(n_arboles, acc_test, marker="s", color=color2, label="Accuracy")
-    ax2.tick_params(axis="y", labelcolor=color2)
+    # Línea de tiempo
+    fig.add_trace(
+        go.Scatter(x=n_arboles, y=tiempos, mode="lines+markers",
+                   name="Tiempo (s)", marker=dict(size=10, color="#a8552f"), line=dict(color="#a8552f"),
+                   hovertemplate="<b>N arboles = %{x}</b><br>Tiempo = %{y:.4f}s<extra></extra>"),
+        secondary_y=False
+    )
 
-    plt.title("Random Forest: árboles vs tiempo vs accuracy")
-    fig.tight_layout()
-    plt.savefig("resultados/rf_tiempo_vs_precision.png", dpi=110)
-    plt.close()
-    print("\nGráfico guardado en: resultados/rf_tiempo_vs_precision.png")
+    # Línea de accuracy
+    fig.add_trace(
+        go.Scatter(x=n_arboles, y=acc_test, mode="lines+markers",
+                   name="Accuracy", marker=dict(size=10, color="#3f7d54", symbol="square"), line=dict(color="#3f7d54"),
+                   hovertemplate="<b>N arboles = %{x}</b><br>Accuracy = %{y:.4f}<extra></extra>"),
+        secondary_y=True
+    )
+
+    fig.update_xaxes(title_text="Numero de arboles", type="log")
+    fig.update_yaxes(title_text="Tiempo de entrenamiento (s)", secondary_y=False)
+    fig.update_yaxes(title_text="Accuracy en test", secondary_y=True)
+
+    fig.update_layout(
+        title="Random Forest: arboles vs tiempo vs accuracy (INTERACTIVO)",
+        height=600, width=1000,
+        template="plotly_white",
+        hovermode="x unified"
+    )
+
+    fig.write_html("resultados/rf_tiempo_vs_precision_interactivo.html")
+    fig.write_image("resultados/rf_tiempo_vs_precision.png", width=1000, height=600)
+    print("\nGrafico interactivo guardado en: resultados/rf_tiempo_vs_precision_interactivo.html")
+    print("Grafico estatico guardado en: resultados/rf_tiempo_vs_precision.png")
 
 
 def graficar_matriz_confusion(y_test, pred_test, nombre, clases, ruta_salida):
     cm = confusion_matrix(y_test, pred_test, labels=clases)
-    plt.figure(figsize=(11, 9))
-    sns.heatmap(cm, annot=False, cmap="Blues", xticklabels=clases, yticklabels=clases)
-    plt.title(f"Matriz de confusión - {nombre}")
-    plt.xlabel("Predicción")
-    plt.ylabel("Real")
-    plt.xticks(rotation=90)
-    plt.yticks(rotation=0)
-    plt.tight_layout()
-    plt.savefig(ruta_salida, dpi=110)
-    plt.close()
-    print(f"Matriz de confusión guardada en: {ruta_salida}")
+    fig = figura_matriz_confusion(cm, clases, f"Matriz de confusión - {nombre}", color="Blues")
+    guardar_figura(fig, ruta_salida, width=1100)
 
 
 def explicar_bootstrap(X_train):

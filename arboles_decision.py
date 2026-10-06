@@ -14,10 +14,6 @@ variables (dividen comparando valor vs umbral, variable por variable).
 import time
 # Manejo de estructuras de datos y operaciones numéricas
 import numpy as np
-# Generación y personalización de gráficos estáticos
-import matplotlib.pyplot as plt
-# Visualización de datos de alto nivel (usado para mapas de calor / heatmaps)
-import seaborn as sns
 # DecisionTreeClassifier: Algoritmo de clasificación basado en árboles de decisión (CART).
 # plot_tree: Herramienta para renderizar la estructura visual del árbol generado
 from sklearn.tree import DecisionTreeClassifier, plot_tree
@@ -26,10 +22,13 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 # - confusion_matrix: Matriz NxN de aciertos y desvíos entre clases.
 # - classification_report: Reporte detallado de precisión, recall y F1-score.
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+# cross_val_score: validación cruzada, para elegir el ccp_alpha sin mirar el test
+from sklearn.model_selection import cross_val_score
 # Importación de funciones propias desde el módulo local preprocesamiento.py:
 # - cargar_crop: Carga y separa la base de datos de cultivos en X e y.
 # - dividir_datos: Genera las particiones de Entrenamiento (Train) y Prueba (Test).
 from preprocesamiento import cargar_crop, dividir_datos
+from graficos import figura_matriz_confusion, figura_curva_poda, guardar_figura
 
 
 def entrenar_y_evaluar(modelo, X_train, X_test, y_train, y_test, nombre):
@@ -58,15 +57,20 @@ def entrenar_y_evaluar(modelo, X_train, X_test, y_train, y_test, nombre):
     print(f"Accuracy en TRAIN       : {acc_train:.4f}")
     print(f"Accuracy en TEST        : {acc_test:.4f}")
     # --------------------------------------------------------------------------
-    # 4. AUDITORÍA DE SOBREAJUSTE (OVERFITTING)
+    # 4. AUDITORÍA DE SOBREAJUSTE (OVERFITTING) Y SUBAJUSTE (UNDERFITTING)
     # --------------------------------------------------------------------------
     # Si la exactitud en Train supera a la de Test por más de 8 puntos porcentuales (0.08),
     # indica que el árbol memorizó ruido de entrenamiento y pierde capacidad de generalizar.
+    # Una brecha pequeña NO basta para decir "buen ajuste": si el accuracy es bajo en
+    # ambos conjuntos (< 0.60), el modelo es demasiado simple para las 22 clases.
     diferencia = acc_train - acc_test
     if diferencia > 0.08:
-        print(f"⚠ Posible sobreajuste (diferencia train-test = {diferencia:.4f})")
+        print(f"[!] Posible sobreajuste (diferencia train-test = {diferencia:.4f})")
+    elif acc_test < 0.60:
+        print(f"[!] Posible subajuste (accuracy test = {acc_test:.4f}, bajo en train y test; "
+              f"diferencia train-test = {diferencia:.4f})")
     else:
-        print(f"✔ Buen ajuste (diferencia train-test = {diferencia:.4f})")
+        print(f"[OK] Buen ajuste (diferencia train-test = {diferencia:.4f})")
     # --------------------------------------------------------------------------
     # 5. RETORNO DE RESULTADOS
     # Devuelve un diccionario con las métricas, el modelo ajustado y las predicciones.
@@ -82,26 +86,13 @@ def entrenar_y_evaluar(modelo, X_train, X_test, y_train, y_test, nombre):
 
 
 def graficar_matriz_confusion(y_test, pred_test, nombre, clases, ruta_salida):
-    """Genera y guarda la matriz de confusión como imagen."""
+    """Genera y guarda la matriz de confusión (PNG + HTML interactivo)."""
     # Calcula la matriz cuadrada NxN (donde N es el número de clases).
     # labels=clases asegura el orden de las etiquetas en ejes X e Y.
     cm = confusion_matrix(y_test, pred_test, labels=clases)
-    plt.figure(figsize=(11, 9))# Tamaño del gráfico (ancho, alto) en pulgadas
-    # Renderiza la matriz con Seaborn:
-    # - annot=False: Omite los números en cada celda para evitar saturación visual.
-    # - cmap="Oranges": Escala de intensidad de color naranja según el número de muestras.
-    sns.heatmap(cm, annot=False, cmap="Oranges", xticklabels=clases, yticklabels=clases)
-    plt.title(f"Matriz de confusión - {nombre}")
-    plt.xlabel("Predicción")
-    plt.ylabel("Real")
-    # Rotación de etiquetas para lectura óptima de las 22 clases
-    plt.xticks(rotation=90)# Eje X en vertical
-    plt.yticks(rotation=0)# Eje Y en horizontal
-    # Adjusta márgenes automáticamente para que no se corten los nombres de las clases
-    plt.tight_layout()
-    plt.savefig(ruta_salida, dpi=110)
-    plt.close()
-    print(f"Matriz de confusión guardada en: {ruta_salida}")
+    # Aciertos (diagonal) en naranja, errores en rojo y celdas en cero vacías.
+    fig = figura_matriz_confusion(cm, clases, f"Matriz de confusión - {nombre}", color="Oranges")
+    guardar_figura(fig, ruta_salida, width=1100)
 
 
 def experimento_arboles():
@@ -151,31 +142,30 @@ def experimento_arboles():
 
     # 2. Se selecciona una muestra de máximo 25 valores de alpha para agilizar la prueba
     alphas_muestra = ccp_alphas[:: max(1, len(ccp_alphas) // 25)]
-    acc_train_list, acc_test_list = [], []
+    acc_train_list, acc_test_list, acc_cv_list = [], [], []
     # 3. Bucle de prueba: Se entrena un nuevo árbol por cada nivel de alpha en la muestra
     for alpha in alphas_muestra:
         arbol = DecisionTreeClassifier(random_state=42, ccp_alpha=alpha)
+        # Validación cruzada (5 pliegues estratificados) SOLO con el set de entrenamiento:
+        # es el criterio para elegir alpha, así el test no participa en la elección.
+        acc_cv_list.append(cross_val_score(arbol, X_train, y_train, cv=5, scoring="accuracy").mean())
         arbol.fit(X_train, y_train)
-        # Registra el desempeño en train y test para cada nivel de poda
+        # Registra el desempeño en train y test para cada nivel de poda (solo para graficar)
         acc_train_list.append(accuracy_score(y_train, arbol.predict(X_train)))
         acc_test_list.append(accuracy_score(y_test, arbol.predict(X_test)))
-    # 4. Graficación de la curva Alpha vs Accuracy (Train y Test)
-    plt.figure(figsize=(8, 5))
-    plt.plot(alphas_muestra, acc_train_list, marker="o", label="Train")
-    plt.plot(alphas_muestra, acc_test_list, marker="o", label="Test")
-    plt.xlabel("ccp_alpha (nivel de poda)")
-    plt.ylabel("Accuracy")
-    plt.title("Efecto de la post-poda en accuracy (train vs test)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("resultados/poda_ccp_alpha.png", dpi=110)
-    plt.close()
-    print("Gráfico de post-poda guardado en: resultados/poda_ccp_alpha.png")
 
-    # 5. Selección del mejor ccp_alpha: El que maximiza la exactitud en el conjunto de TEST
-    mejor_idx = int(np.argmax(acc_test_list))# Índice con la máxima exactitud en test
-    mejor_alpha = alphas_muestra[mejor_idx] # Alpha ganador
-    print(f"\nMejor ccp_alpha encontrado: {mejor_alpha:.6f}")
+    # 4. Selección del mejor ccp_alpha: el que maximiza el accuracy de VALIDACIÓN CRUZADA.
+    # Elegirlo con el test sería usar el test para ajustar un hiperparámetro (resultado
+    # optimista); el test se reserva para la evaluación final del alpha ya elegido.
+    mejor_idx = int(np.argmax(acc_cv_list))
+    mejor_alpha = alphas_muestra[mejor_idx]
+    fig = figura_curva_poda(alphas_muestra, acc_train_list, acc_test_list, "Accuracy",
+                            "Efecto de la post-poda en accuracy (train vs test) - Clasificación",
+                            metrica_cv=acc_cv_list)
+    guardar_figura(fig, "resultados/poda_ccp_alpha.png")
+
+    print(f"\nMejor ccp_alpha (elegido por validación cruzada 5-fold): {mejor_alpha:.6f}")
+    print(f"Accuracy CV    con ese alpha: {acc_cv_list[mejor_idx]:.4f}")
     print(f"Accuracy train con ese alpha: {acc_train_list[mejor_idx]:.4f}")
     print(f"Accuracy test  con ese alpha: {acc_test_list[mejor_idx]:.4f}")
 
@@ -184,7 +174,7 @@ def experimento_arboles():
     print(f"{'Modelo':45s} {'Tiempo(s)':>10s} {'Acc Train':>10s} {'Acc Test':>10s}")
     for r in resultados:
         print(f"{r['nombre']:45s} {r['tiempo']:>10.4f} {r['acc_train']:>10.4f} {r['acc_test']:>10.4f}")
-    print(f"{'Árbol podado (ccp_alpha óptimo)':45s} {'-':>10s} "
+    print(f"{'Árbol podado (ccp_alpha por CV)':45s} {'-':>10s} "
           f"{acc_train_list[mejor_idx]:>10.4f} {acc_test_list[mejor_idx]:>10.4f}")
 
     return resultados

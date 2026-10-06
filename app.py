@@ -42,6 +42,8 @@ from sklearn.model_selection import (
 from scipy.optimize import linear_sum_assignment
 
 from preprocesamiento import cargar_crop, cargar_concreto, dividir_datos, estandarizar, calcular_r2_ajustado
+from graficos import figura_matriz_confusion, figura_curva_poda
+from regresion import diagnosticar_ajuste
 
 st.set_page_config(page_title="Inteligencia Computacional 2", layout="wide", page_icon="🧠")
 
@@ -49,27 +51,10 @@ st.set_page_config(page_title="Inteligencia Computacional 2", layout="wide", pag
 # =====================================================================
 # FUNCIONES HELPER PARA GRÁFICOS INTERACTIVOS (Plotly)
 # =====================================================================
-def grafico_confusion_matrix_interactivo(cm, labels, titulo="Matriz de Confusión"):
-    """Crea una matriz de confusión interactiva con Plotly (pasa mouse para ver números)"""
-    fig = go.Figure(data=go.Heatmap(
-        z=cm,
-        x=labels,
-        y=labels,
-        colorscale="Blues",
-        text=cm,
-        texttemplate="%{text}",
-        textfont={"size": 10},
-        hovertemplate="Real: %{y}<br>Predicho: %{x}<br>Cantidad: %{z}<extra></extra>"
-    ))
-    fig.update_layout(
-        title=titulo,
-        xaxis_title="Predicción",
-        yaxis_title="Real",
-        height=600,
-        width=700,
-        template="plotly_white"
-    )
-    return fig
+def grafico_confusion_matrix_interactivo(cm, labels, titulo="Matriz de Confusión", color="Blues", **kwargs):
+    """Matriz de confusión interactiva: celdas en cero vacías, aciertos y errores en
+    escalas de color separadas y números discretos (se pueden ocultar con un botón)."""
+    return figura_matriz_confusion(cm, labels, titulo, color=color, **kwargs)
 
 
 def grafico_barras_interactivo(valores, nombres, titulo="", ylabel="", color="#3f7d54"):
@@ -781,10 +766,13 @@ with tabs[0]:
         st.dataframe(df_conc.head(6))
 
         st.subheader("Distribución de la variable objetivo (csMPa)")
-        fig, ax = plt.subplots(figsize=(7, 3.5))
-        ax.hist(y_conc, bins=25, color="#a8552f", edgecolor="white")
-        ax.set_xlabel("csMPa"); ax.set_ylabel("Frecuencia")
-        st.pyplot(fig)
+        fig = go.Figure(go.Histogram(
+            x=y_conc, nbinsx=25, marker=dict(color="#a8552f", line=dict(color="white", width=1)),
+            hovertemplate="csMPa: %{x}<br>Frecuencia: %{y}<extra></extra>"))
+        fig.update_layout(template="plotly_white", height=380, bargap=0.02,
+                          xaxis_title="csMPa", yaxis_title="Frecuencia",
+                          margin=dict(t=30, b=40))
+        st.plotly_chart(fig, use_container_width=True)
         st.info("Al no tener clases discretas, este dataset es el que usamos para toda "
                 "la parte de **regresión**.")
 
@@ -1101,7 +1089,8 @@ with tabs[2]:
 
         # Gráfico interactivo con Plotly
         fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
-                                                       titulo="Matriz de Confusión - Árbol de Decisión (INTERACTIVA)")
+                                                       titulo="Matriz de Confusión - Árbol de Decisión (INTERACTIVA)",
+                                                       color="Oranges")
         st.plotly_chart(fig_cm, use_container_width=True)
         st.caption("La matriz de confusión muestra en qué cultivos se equivoca el árbol "
                    "(normalmente entre leguminosas con requerimientos de suelo parecidos).")
@@ -1169,27 +1158,31 @@ with tabs[2]:
         X, y, _ = cargar_crop()
         X_train, X_test, y_train, y_test = dividir_datos(X, y, test_size=0.2, estratificar=True)
 
-        with st.spinner("Calculando ruta de poda (cost-complexity pruning)..."):
+        with st.spinner("Calculando ruta de poda y validación cruzada para cada alpha..."):
             arbol_completo = DecisionTreeClassifier(random_state=42)
             path = arbol_completo.cost_complexity_pruning_path(X_train, y_train)
             alphas = path.ccp_alphas[:: max(1, len(path.ccp_alphas) // 25)]
-            acc_tr, acc_te = [], []
+            acc_tr, acc_te, acc_cv = [], [], []
             for a in alphas:
                 m = DecisionTreeClassifier(random_state=42, ccp_alpha=a)
+                # El alpha se elige con validación cruzada sobre el TRAIN (no con el test)
+                acc_cv.append(cross_val_score(m, X_train, y_train, cv=5).mean())
                 m.fit(X_train, y_train)
                 acc_tr.append(accuracy_score(y_train, m.predict(X_train)))
                 acc_te.append(accuracy_score(y_test, m.predict(X_test)))
 
-        fig, ax = plt.subplots(figsize=(8, 4.5))
-        ax.plot(alphas, acc_tr, marker="o", label="Train")
-        ax.plot(alphas, acc_te, marker="o", label="Test")
-        ax.set_xlabel("ccp_alpha (nivel de poda)"); ax.set_ylabel("Accuracy")
-        ax.legend()
-        st.pyplot(fig)
+        fig = figura_curva_poda(alphas, acc_tr, acc_te, "Accuracy",
+                                "Efecto de la post-poda en accuracy (train vs test)",
+                                metrica_cv=acc_cv)
+        st.plotly_chart(fig, use_container_width=True)
 
-        mejor = int(np.argmax(acc_te))
-        st.success(f"Mejor `ccp_alpha` = {alphas[mejor]:.6f} → "
-                   f"Accuracy train = {acc_tr[mejor]:.2%}, Accuracy test = {acc_te[mejor]:.2%}")
+        mejor = int(np.argmax(acc_cv))
+        st.success(f"Mejor `ccp_alpha` (elegido por validación cruzada 5-fold) = {alphas[mejor]:.6f} → "
+                   f"Accuracy CV = {acc_cv[mejor]:.2%}, train = {acc_tr[mejor]:.2%}, "
+                   f"test = {acc_te[mejor]:.2%}")
+        st.caption("El test NO se usa para elegir el alpha: elegirlo con el test sería ajustar un "
+                   "hiperparámetro con los datos de evaluación y daría un resultado optimista. "
+                   "El test solo reporta cómo le va al alpha ya elegido.")
 
     st.markdown("---")
     st.subheader("🔬 Ver un sobreajuste REAL: sobreajustado vs. bien ajustado vs. subajustado")
@@ -1296,20 +1289,22 @@ with tabs[2]:
 
         st.dataframe(pd.DataFrame(filas), hide_index=True, use_container_width=True)
 
-        fig_cmp, ax_cmp = plt.subplots(figsize=(8, 4.5))
         nombres_barras = [f["Modelo"] for f in filas]
+        nombres_cortos = [n.split(" ", 1)[1] if " " in n else n for n in nombres_barras]
         acc_train_vals = [float(f["Accuracy train (con ruido)"].strip('%'))/100 for f in filas]
         acc_test_vals = [float(f["Accuracy test (limpio)"].strip('%'))/100 for f in filas]
-        x_pos = np.arange(len(filas))
-        ax_cmp.bar(x_pos - 0.2, acc_train_vals, width=0.4, label="Train (con ruido)", color="#a8552f")
-        ax_cmp.bar(x_pos + 0.2, acc_test_vals, width=0.4, label="Test (limpio)", color="#3f7d54")
-        ax_cmp.set_xticks(x_pos)
-        ax_cmp.set_xticklabels([n.split(" ", 1)[1] if " " in n else n for n in nombres_barras],
-                                rotation=20, ha="right", fontsize=8)
-        ax_cmp.set_ylabel("Accuracy")
-        ax_cmp.legend()
-        ax_cmp.set_title(f"Efecto del {pct_ruido}% de ruido en cada estrategia")
-        st.pyplot(fig_cmp)
+        fig_cmp = go.Figure()
+        fig_cmp.add_trace(go.Bar(x=nombres_cortos, y=acc_train_vals, name="Train (con ruido)",
+                                 marker_color="#a8552f",
+                                 hovertemplate="%{x}<br>Train: %{y:.2%}<extra></extra>"))
+        fig_cmp.add_trace(go.Bar(x=nombres_cortos, y=acc_test_vals, name="Test (limpio)",
+                                 marker_color="#3f7d54",
+                                 hovertemplate="%{x}<br>Test: %{y:.2%}<extra></extra>"))
+        fig_cmp.update_layout(barmode="group", template="plotly_white", height=460,
+                              title=f"Efecto del {pct_ruido}% de ruido en cada estrategia",
+                              yaxis=dict(title="Accuracy", tickformat=".0%"),
+                              xaxis=dict(tickangle=-20), legend=dict(orientation="h", y=1.08))
+        st.plotly_chart(fig_cmp, use_container_width=True)
 
         st.markdown("""
         **Cómo leerlo:** entre más grande la barra café (train) comparada con la verde
@@ -1508,10 +1503,18 @@ with tabs[4]:
         c4.metric("R² test", f"{r2:.4f}")
         c5.metric("R² Adj test", f"{r2_adj:.4f}")
 
-        if r2_train - r2 > 0.15:
-            st.warning(f"⚠ Posible sobreajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}, R² Adj train={r2_adj_train:.3f} vs R² Adj test={r2_adj:.3f}).")
+        mae_train = mean_absolute_error(y_train, pred_train)
+        ajuste, _ = diagnosticar_ajuste(r2_train, r2, mae_train, mae)
+        resumen_ajuste = (f"R² train={r2_train:.3f} vs R² test={r2:.3f}, "
+                          f"R² Adj train={r2_adj_train:.3f} vs R² Adj test={r2_adj:.3f}, "
+                          f"MAE train={mae_train:.2f} vs MAE test={mae:.2f} MPa")
+        if ajuste == "sobreajuste":
+            st.warning(f"⚠ Posible **sobreajuste** ({resumen_ajuste}). Se marca si la brecha de R² "
+                       "pasa de 0.15 o si el MAE de test es más del triple del de train.")
+        elif ajuste == "subajuste":
+            st.warning(f"⚠ Posible **subajuste** ({resumen_ajuste}): R² test por debajo de 0.60.")
         else:
-            st.success(f"✔ Buen ajuste (R² train={r2_train:.3f} vs R² test={r2:.3f}, R² Adj train={r2_adj_train:.3f} vs R² Adj test={r2_adj:.3f}).")
+            st.success(f"✔ Buen ajuste ({resumen_ajuste}).")
 
         # Gráfico interactivo con Plotly
         fig = grafico_scatter_interactivo(pred_test, y_test,
@@ -1722,21 +1725,29 @@ with tabs[4]:
         else:
             st.info("El árbol 'bien ajustado' generaliza mejor que el sobreajustado en esta partición.")
 
-        fig_rp, axes_rp = plt.subplots(2, 4, figsize=(18, 8), sharex=True, sharey=True)
         lim_r = [float(yc.min()), float(yc.max())]
-        for j, (nombre, mod, p_tr, p_te) in enumerate(entrenados_sr):
-            for i, (real, pred, etiqueta, color) in enumerate([
-                    (ytr_r, p_tr, "TRAIN", "#a8552f"), (yte_r, p_te, "TEST", "#3f7d54")]):
-                axx = axes_rp[i, j]
-                axx.scatter(real, pred, s=10, alpha=0.5, color=color)
-                axx.plot(lim_r, lim_r, "k--", linewidth=1)
-                axx.set_title(f"{nombre.split(' ', 1)[1]}\n{etiqueta}  (R²={r2_score(real, pred):.3f})", fontsize=9)
-                if j == 0:
-                    axx.set_ylabel("csMPa predicho")
-                if i == 1:
-                    axx.set_xlabel("csMPa real")
-        fig_rp.tight_layout()
-        st.pyplot(fig_rp)
+        filas_rp = [("TRAIN", ytr_r, 2, "#a8552f"), ("TEST", yte_r, 3, "#3f7d54")]
+        titulos_rp = [f"{e[0].split(' ', 1)[1]}<br>{etiqueta} (R²={r2_score(real, e[idx]):.3f})"
+                      for etiqueta, real, idx, _ in filas_rp for e in entrenados_sr]
+        fig_rp = make_subplots(rows=2, cols=len(entrenados_sr), shared_xaxes=True, shared_yaxes=True,
+                               horizontal_spacing=0.03, vertical_spacing=0.12,
+                               subplot_titles=titulos_rp)
+        for j, entrenado in enumerate(entrenados_sr):
+            for i, (etiqueta, real, idx, color) in enumerate(filas_rp):
+                fig_rp.add_trace(go.Scatter(
+                    x=np.asarray(real), y=entrenado[idx], mode="markers", showlegend=False,
+                    marker=dict(size=5, color=color, opacity=0.5),
+                    hovertemplate=f"{etiqueta}<br>Real: %{{x:.2f}}<br>Predicho: %{{y:.2f}}<extra></extra>"),
+                    row=i + 1, col=j + 1)
+                fig_rp.add_trace(go.Scatter(x=lim_r, y=lim_r, mode="lines", showlegend=False,
+                                            line=dict(color="black", dash="dash", width=1),
+                                            hoverinfo="skip"),
+                                 row=i + 1, col=j + 1)
+        fig_rp.update_xaxes(title_text="csMPa real", row=2)
+        fig_rp.update_yaxes(title_text="csMPa predicho", col=1)
+        fig_rp.update_annotations(font_size=11)
+        fig_rp.update_layout(template="plotly_white", height=720, margin=dict(t=80))
+        st.plotly_chart(fig_rp, use_container_width=True)
         st.caption("Fila de arriba: datos con los que se entrenó. Fila de abajo: datos que el "
                    "modelo nunca vio. En el árbol sobreajustado los puntos de TRAIN caen casi "
                    "exactamente sobre la diagonal (memorizó), pero en TEST se dispersan: esa "
@@ -1803,19 +1814,23 @@ with tabs[5]:
             valores_k = list(range(1, 26))
             accs = [cross_val_score(KNeighborsClassifier(n_neighbors=kk, weights=weights),
                                      X_train_esc, y_train, cv=5).mean() for kk in valores_k]
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(valores_k, accs, marker="o", color="#a8552f")
-        ax.axvline(k, color="green", linestyle="--", label=f"K elegido = {k}")
-        ax.set_xlabel("K"); ax.set_ylabel("Accuracy (validación cruzada)")
-        ax.legend()
-        st.pyplot(fig)
+        fig = go.Figure(go.Scatter(
+            x=valores_k, y=accs, mode="lines+markers", name="Accuracy (CV 5-fold)",
+            line=dict(color="#a8552f", width=2.5), marker=dict(size=7),
+            hovertemplate="K = %{x}<br>Accuracy = %{y:.4f}<extra></extra>"))
+        fig.add_vline(x=k, line_dash="dash", line_color="green",
+                      annotation_text=f"K elegido = {k}", annotation_position="top")
+        fig.update_layout(template="plotly_white", height=420, xaxis_title="K",
+                          yaxis_title="Accuracy (validación cruzada)", margin=dict(t=40))
+        st.plotly_chart(fig, use_container_width=True)
 
         clases = sorted(y.unique())
         cm = confusion_matrix(y_test, pred_test, labels=clases)
 
         # Gráfico interactivo con Plotly
         fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
-                                                       titulo="Matriz de Confusión - KNN (INTERACTIVA)")
+                                                       titulo="Matriz de Confusión - KNN (INTERACTIVA)",
+                                                       color="Greens")
         st.plotly_chart(fig_cm, use_container_width=True)
 
         mostrar_reporte_clasificacion(y_test, pred_test, "Precisión, recall y F1 por cultivo")
@@ -1911,7 +1926,9 @@ with tabs[6]:
 
         # Gráfico interactivo con Plotly
         fig_cm = grafico_confusion_matrix_interactivo(cm, [str(c) for c in clases],
-                                                       titulo="Matriz de Confusión - K-Means vs Clases Reales (INTERACTIVA)")
+                                                       titulo="Matriz de Confusión - K-Means vs Clases Reales (INTERACTIVA)",
+                                                       color="Purples",
+                                                       eje_x="Cluster (mapeado a clase mayoritaria)")
         st.plotly_chart(fig_cm, use_container_width=True)
 
         # --- Vista 2D de los clusters con PCA (idea tomada del proyecto de referencia) ---
@@ -1979,24 +1996,28 @@ with tabs[6]:
                 siluetas.append(silhouette_score(X_esc, etq))
                 dbs.append(davies_bouldin_score(X_esc, etq))
 
-        fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-        axes[0].plot(rango_k, inercias, marker="o", color="#a8552f")
-        axes[0].axvline(22, color="gray", linestyle="--", label="K real (22)")
-        axes[0].set_title("Codo (Inercia)"); axes[0].legend()
-
         k_sil = rango_k[int(np.argmax(siluetas))]
-        axes[1].plot(rango_k, siluetas, marker="o", color="#3f7d54")
-        axes[1].axvline(22, color="gray", linestyle="--", label="K real (22)")
-        axes[1].axvline(k_sil, color="green", linestyle=":", label=f"Mejor (K={k_sil})")
-        axes[1].set_title("Silueta"); axes[1].legend()
-
         k_db = rango_k[int(np.argmin(dbs))]
-        axes[2].plot(rango_k, dbs, marker="o", color="#3f5f7d")
-        axes[2].axvline(22, color="gray", linestyle="--", label="K real (22)")
-        axes[2].axvline(k_db, color="blue", linestyle=":", label=f"Mejor (K={k_db})")
-        axes[2].set_title("Davies-Bouldin"); axes[2].legend()
-
-        st.pyplot(fig)
+        fig = make_subplots(rows=1, cols=3, horizontal_spacing=0.07,
+                            subplot_titles=("Codo (Inercia)", "Silueta", "Davies-Bouldin"))
+        for col, (valores, color, nombre) in enumerate([
+                (inercias, "#a8552f", "Inercia"), (siluetas, "#3f7d54", "Silueta"),
+                (dbs, "#3f5f7d", "Davies-Bouldin")], start=1):
+            fig.add_trace(go.Scatter(x=rango_k, y=valores, mode="lines+markers", name=nombre,
+                                     line=dict(color=color, width=2), marker=dict(size=6),
+                                     hovertemplate=f"K = %{{x}}<br>{nombre} = %{{y:.4f}}<extra></extra>"),
+                          row=1, col=col)
+            fig.add_vline(x=22, line_dash="dash", line_color="gray", row=1, col=col,
+                          annotation_text="K real (22)", annotation_font_size=10)
+        fig.add_vline(x=k_sil, line_dash="dot", line_color="green", row=1, col=2,
+                      annotation_text=f"Mejor (K={k_sil})", annotation_position="bottom right",
+                      annotation_font_size=10)
+        fig.add_vline(x=k_db, line_dash="dot", line_color="blue", row=1, col=3,
+                      annotation_text=f"Mejor (K={k_db})", annotation_position="bottom right",
+                      annotation_font_size=10)
+        fig.update_xaxes(title_text="K")
+        fig.update_layout(template="plotly_white", height=430, showlegend=False, margin=dict(t=50))
+        st.plotly_chart(fig, use_container_width=True)
         st.warning(f"Silueta sugiere K={k_sil}, Davies-Bouldin sugiere K={k_db} — "
                   f"ninguno coincide exactamente con el K real (22). Esto sugiere que "
                   f"varios cultivos comparten condiciones de suelo/clima muy similares.")

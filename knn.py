@@ -15,13 +15,13 @@ IMPORTANTE: KNN depende de distancias -> se usan los datos ESTANDARIZADOS
 
 import time
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.graph_objects as go
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 from preprocesamiento import cargar_crop, dividir_datos, estandarizar
+from graficos import figura_matriz_confusion, guardar_figura
 
 VALORES_K = list(range(1, 26))  # 1 a 25
 
@@ -42,23 +42,52 @@ def seleccionar_mejor_k(X_train_esc, y_train):
         accuracies.append(scores.mean())
         print(f"K={k:2d} -> accuracy promedio (CV) = {scores.mean():.4f}")
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(VALORES_K, accuracies, marker="o", color="#a8552f")
-    plt.xlabel("K (número de vecinos)")
-    plt.ylabel("Accuracy promedio (validación cruzada)")
-    plt.title("Selección de K en KNN")
-    plt.xticks(VALORES_K)
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig("resultados/knn_seleccion_k.png", dpi=110)
-    plt.close()
-    print("\nGráfico guardado en: resultados/knn_seleccion_k.png")
-
     # Preferir K impar entre los mejores candidatos, para minimizar empates
     mejor_acc = max(accuracies)
     candidatos = [k for k, a in zip(VALORES_K, accuracies) if a >= mejor_acc - 0.002]
     candidatos_impares = [k for k in candidatos if k % 2 == 1]
     mejor_k = min(candidatos_impares) if candidatos_impares else min(candidatos)
+    mejor_acc_val = accuracies[VALORES_K.index(mejor_k)]
+
+    # Gráfico interactivo con Plotly
+    fig = go.Figure()
+
+    # Línea principal
+    fig.add_trace(go.Scatter(
+        x=VALORES_K, y=accuracies,
+        mode="lines+markers",
+        name="Accuracy (5-fold CV)",
+        line=dict(color="#a8552f", width=3),
+        marker=dict(size=10),
+        hovertemplate="<b>K = %{x}</b><br>Accuracy = %{y:.4f}<extra></extra>"
+    ))
+
+    # Punto óptimo
+    fig.add_trace(go.Scatter(
+        x=[mejor_k], y=[mejor_acc_val],
+        mode="markers",
+        name=f"Optimo (K={mejor_k})",
+        marker=dict(size=20, color="green", symbol="star"),
+        hovertemplate="<b>OPTIMO</b><br>K = %{x}<br>Accuracy = %{y:.4f}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title="Seleccion de K en KNN (INTERACTIVO - Pasa mouse sobre puntos)",
+        xaxis_title="K (numero de vecinos)",
+        yaxis_title="Accuracy promedio (validacion cruzada)",
+        hovermode="x unified",
+        template="plotly_white",
+        height=600,
+        width=1000,
+        font=dict(size=12),
+        xaxis=dict(gridcolor="lightgray"),
+        yaxis=dict(gridcolor="lightgray")
+    )
+
+    fig.write_html("resultados/knn_seleccion_k_interactivo.html")
+    fig.write_image("resultados/knn_seleccion_k.png", width=1000, height=600)
+    print("\nGrafico interactivo guardado en: resultados/knn_seleccion_k_interactivo.html")
+    print("Grafico estatico guardado en: resultados/knn_seleccion_k.png")
 
     print(f"\nMejor K encontrado (preferido impar): {mejor_k} "
           f"(accuracy CV = {accuracies[VALORES_K.index(mejor_k)]:.4f})")
@@ -89,18 +118,9 @@ def evaluar_knn(k, X_train_esc, X_test_esc, y_train, y_test, clases, weights="un
     print(f"Accuracy en test: {acc:.4f}")
 
     cm = confusion_matrix(y_test, pred_test, labels=clases)
-    plt.figure(figsize=(11, 9))
-    sns.heatmap(cm, cmap="Greens", xticklabels=clases, yticklabels=clases)
-    plt.title(f"Matriz de confusión - KNN (K={k}, weights='{weights}')")
-    plt.xlabel("Predicción")
-    plt.ylabel("Real")
-    plt.xticks(rotation=90)
-    plt.yticks(rotation=0)
-    plt.tight_layout()
-    ruta = f"resultados/cm_knn_k{k}_{weights}.png"
-    plt.savefig(ruta, dpi=110)
-    plt.close()
-    print(f"Matriz de confusión guardada en: {ruta}")
+    fig = figura_matriz_confusion(cm, clases, f"Matriz de confusión - KNN (K={k}, weights='{weights}')",
+                                  color="Greens")
+    guardar_figura(fig, f"resultados/cm_knn_k{k}_{weights}.png", width=1100)
 
     return modelo, acc
 
