@@ -1,0 +1,12 @@
+﻿Entrega,Modelo,Familia,R² train,R²,R² ajustado,Brecha,MAE,MSE,RMSE,Tiempo (s)
+1,Árbol 1 (sin restricción),Árbol,0.9953,0.8926,0.8863,0.1027,4.005,29.651,5.445,0.003
+1,Árbol 2 (max_depth=4),Árbol,0.7602,0.7352,0.7196,0.025,7.009,73.102,8.55,0.0025
+1,"Árbol 3 (70/30, MAE) *",Árbol,0.9922,0.7968,0.789,0.1953,5.22,59.673,7.725,0.0099
+1,Árbol podado (ccp_alpha=0.2535),Árbol,0.942,0.8612,0.853,0.0808,4.949,38.313,6.19,0.0
+1,Random Forest (9 árboles),Random Forest,0.9759,0.9217,0.9171,0.0542,3.552,21.624,4.65,0.0553
+1,Random Forest (49 árboles),Random Forest,0.9823,0.9328,0.9289,0.0495,3.244,18.541,4.306,0.0499
+1,Random Forest (491 árboles),Random Forest,0.9831,0.9389,0.9353,0.0441,3.122,16.865,4.107,0.35
+2,"SVR (rbf, C=100, gamma=0.1, eps=0.2)",SVM,0.9625,0.876,0.8687,0.0865,4.422,34.236,5.851,0.0551
+2,Red neuronal 1 (básica),Red neuronal,0.872,0.8693,0.8616,0.0027,4.759,36.077,6.006,0.2721
+2,Red neuronal 2 (intermedia),Red neuronal,0.9784,0.8993,0.8934,0.079,3.669,27.786,5.271,0.4927
+2,Red neuronal 3 (compleja),Red neuronal,0.9875,0.9018,0.896,0.0857,3.664,27.118,5.207,3.1177
