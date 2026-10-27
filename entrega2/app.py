@@ -189,7 +189,7 @@ with tabs[0]:
 # NAIVE BAYES
 # =============================================================================================
 with tabs[1]:
-    st.header("Naive Bayes gaussiano — implementado a mano")
+    st.header("Naive Bayes gaussiano")
     st.latex(r"P(C\mid x)=\frac{P(C)\,\prod_{i=1}^{7}P(x_i\mid C)}{P(x)}\qquad P(x_i\mid C)=\frac{1}{\sqrt{2\pi\sigma^2_{C,i}}}\,e^{-\frac{(x_i-\mu_{C,i})^2}{2\sigma^2_{C,i}}}")
     palabras_clave({
         "Probabilidad de clase / a priori P(C)": "proporción del cultivo en train (100/2200 → 1/22 = 4.55 %, dataset balanceado).",
@@ -198,15 +198,14 @@ with tabs[1]:
         "Evidencia P(x)": "Σ P(C)·Π P(xᵢ|C); solo normaliza, no cambia cuál clase gana.",
         "Supuesto ingenuo": "atributos independientes dado el cultivo → la conjunta es un producto.",
         "Log-probabilidades": "se suman logs en vez de multiplicar 7 densidades pequeñas (evita underflow).",
-        "var_smoothing": "pequeña cantidad sumada a las varianzas para no dividir por cero (igual que scikit-learn).",
+        "var_smoothing": "pequeña cantidad sumada a las varianzas para no dividir por cero.",
         "Modelo generativo": "modela cómo se generan los datos de cada clase (P(x|C)), no solo la frontera.",
     })
     if boton("🎲 Entrenar Naive Bayes", "nb"):
         r = naive_bayes_entrenado()
         d, nb = r["datos"], r["modelo"]
         fila_clasif(r["train"], r["test"], r["tiempo"])
-        st.caption(f"Implementación propia = `GaussianNB` de scikit-learn → predicciones: **{r['coincide_predicciones']}**, "
-                   f"probabilidades: **{r['coincide_probabilidades']}**. Datos sin escalar.")
+        st.caption("Datos sin escalar: cada variable se modela con su propia media y varianza.")
         c1, c2 = st.columns([3, 2])
         with c1:
             grafica(g.figura_matriz_confusion(r["test"]["matriz_confusion"], d["clases"], "Matriz de confusión (test)"))

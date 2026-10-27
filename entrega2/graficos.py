@@ -108,14 +108,18 @@ def figura_real_vs_predicho(y_real, y_pred, titulo="", unidad="csMPa", color=COL
 
 
 def figura_heatmap(tabla, titulo, eje_x, eje_y, formato=".3f", mayor_es_mejor=True):
-    """Heatmap de una rejilla de hiperparámetros (DataFrame) con el valor de cada celda; marca el mejor."""
+    """Heatmap de una rejilla de hiperparámetros (DataFrame) con el valor de cada celda; marca el modelo elegido."""
     z = tabla.values.astype(float)
     xs, ys = [str(c) for c in tabla.columns], [str(i) for i in tabla.index]
     fig = go.Figure(go.Heatmap(z=z, x=xs, y=ys, colorscale="YlGn" if mayor_es_mejor else "YlGn_r",
                                text=[[format(v, formato) if not np.isnan(v) else "" for v in fila] for fila in z],
                                texttemplate="%{text}", hovertemplate=f"{eje_y}=%{{y}}<br>{eje_x}=%{{x}}<br>valor=%{{z:{formato}}}<extra></extra>",
                                colorbar=dict(thickness=12, outlinewidth=0)))
-    if np.any(~np.isnan(z)):
+    if tabla.attrs.get("mejor") and tabla.attrs["mejor"][0] in ys and tabla.attrs["mejor"][1] in xs:
+        # Celda del modelo elegido por GridSearchCV (en un empate no siempre es el máximo que se ve redondeado)
+        i, j = ys.index(tabla.attrs["mejor"][0]), xs.index(tabla.attrs["mejor"][1])
+        fig.add_shape(type="rect", x0=j - 0.5, x1=j + 0.5, y0=i - 0.5, y1=i + 0.5, line=dict(color="#b00020", width=3))
+    elif np.any(~np.isnan(z)):
         i, j = np.unravel_index(np.nanargmax(z) if mayor_es_mejor else np.nanargmin(z), z.shape)
         fig.add_shape(type="rect", x0=j - 0.5, x1=j + 0.5, y0=i - 0.5, y1=i + 0.5, line=dict(color="#b00020", width=3))
     fig.update_layout(title=titulo, template=PLANTILLA, height=120 + 55 * len(ys), margin=dict(t=60, b=40),

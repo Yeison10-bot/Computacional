@@ -1,8 +1,7 @@
 """
 naive_bayes.py  (ENTREGA 2)
 ----------------------------
-Naive Bayes GAUSSIANO sobre Crop_recommendation (22 cultivos), IMPLEMENTADO A MANO y verificado
-contra GaussianNB de scikit-learn.
+Naive Bayes GAUSSIANO sobre Crop_recommendation (22 cultivos).
 
     P(C | x) = P(C) · Π_i P(x_i | C) / P(x)
 
@@ -16,14 +15,13 @@ Se suman logaritmos (evita underflow). No necesita escalado.
 import time
 import numpy as np
 import pandas as pd
-from sklearn.naive_bayes import GaussianNB
 
 from preprocesamiento import preparar_clasificacion
 from metricas import metricas_clasif
 
 
 class NaiveBayesGaussiano:
-    """Naive Bayes gaussiano implementado desde cero (mismo suavizado que scikit-learn)."""
+    """Naive Bayes gaussiano."""
 
     def __init__(self, var_smoothing=1e-9):
         self.var_smoothing = var_smoothing
@@ -40,7 +38,7 @@ class NaiveBayesGaussiano:
             self.a_priori_[k] = len(Xc) / len(X)
             self.media_[k] = Xc.mean(axis=0)
             self.varianza_[k] = Xc.var(axis=0)
-        # Suavizado: evita varianza 0 (división por cero). Es el mismo que usa scikit-learn.
+        # Suavizado: evita varianza 0 (división por cero).
         self.varianza_ += self.var_smoothing * X.var(axis=0).max()
         return self
 
@@ -121,24 +119,19 @@ def correlacion_intra_clase(X, y):
 
 
 def experimento_naive_bayes():
-    """Entrena Naive Bayes (manual + scikit-learn), verifica que coinciden y calcula métricas."""
+    """Entrena Naive Bayes gaussiano y calcula métricas."""
     d = preparar_clasificacion()
     Xtr, Xte, ytr, yte = d["X_train"].values, d["X_test"].values, d["y_train"].values, d["y_test"].values
 
     t0 = time.perf_counter()
-    manual = NaiveBayesGaussiano().fit(Xtr, ytr)
+    modelo = NaiveBayesGaussiano().fit(Xtr, ytr)
     tiempo = time.perf_counter() - t0
-    sk = GaussianNB().fit(Xtr, ytr)
 
-    pred_manual, pred_sk = manual.predict(Xte), sk.predict(Xte)
-    coincide = bool(np.all(pred_manual == pred_sk))
-    prob_coincide = bool(np.allclose(manual.predict_proba(Xte), sk.predict_proba(Xte), atol=1e-8))
-
-    m_te = metricas_clasif(yte, pred_manual, d["clases"])
-    m_tr = metricas_clasif(ytr, manual.predict(Xtr), d["clases"])
-    return {"modelo": manual, "sklearn": sk, "datos": d, "tiempo": tiempo,
-            "pred_test": pred_manual, "coincide_predicciones": coincide,
-            "coincide_probabilidades": prob_coincide, "train": m_tr, "test": m_te}
+    pred_te = modelo.predict(Xte)
+    m_te = metricas_clasif(yte, pred_te, d["clases"])
+    m_tr = metricas_clasif(ytr, modelo.predict(Xtr), d["clases"])
+    return {"modelo": modelo, "datos": d, "tiempo": tiempo,
+            "pred_test": pred_te, "train": m_tr, "test": m_te}
 
 
 if __name__ == "__main__":
@@ -146,8 +139,6 @@ if __name__ == "__main__":
     d, nb = r["datos"], r["modelo"]
     print(f"Naive Bayes — acc train {r['train']['accuracy']:.4f} | acc test {r['test']['accuracy']:.4f} "
           f"| F1 macro {r['test']['f1_macro']:.4f} | entrenamiento {r['tiempo']:.4f}s")
-    print("¿Mi implementación manual == scikit-learn?  predicciones:", r["coincide_predicciones"],
-          "| probabilidades:", r["coincide_probabilidades"])
     i = muestra_mas_incierta(nb, d["X_test"].values)
     x = d["X_test"].values[i]
     e = explicar_muestra(nb, x, d["columnas"])

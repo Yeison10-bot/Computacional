@@ -50,7 +50,7 @@ def main():
     titulo("1. NAIVE BAYES GAUSSIANO")
     r_nb = nb.experimento_naive_bayes()
     print(f"Accuracy train {r_nb['train']['accuracy']:.4f} | test {r_nb['test']['accuracy']:.4f} | "
-          f"F1 {r_nb['test']['f1_macro']:.4f} | manual == sklearn: {r_nb['coincide_predicciones']}")
+          f"F1 {r_nb['test']['f1_macro']:.4f}")
     guardar(g.figura_matriz_confusion(r_nb["test"]["matriz_confusion"], dc["clases"], "Naive Bayes gaussiano — matriz de confusión"),
             "cm_naive_bayes.png", 1100)
     i = nb.muestra_mas_incierta(r_nb["modelo"], dc["X_test"].values)

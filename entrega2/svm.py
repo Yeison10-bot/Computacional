@@ -53,6 +53,12 @@ def _corte(res, filas, columnas, filtro=None, valor="mean_test_score"):
     return t
 
 
+def _marcar(tabla, fila, columna):
+    """Guarda en la tabla la celda del modelo elegido por GridSearchCV, para resaltarla en el heatmap."""
+    tabla.attrs["mejor"] = (str(fila), f"{columna:g}")
+    return tabla
+
+
 def _limpiar(params):
     return {k: (v.item() if hasattr(v, "item") else v) for k, v in params.items()}
 
@@ -65,10 +71,14 @@ def buscar_svc(d):
     res = _resultados(gs)
     mejores = _limpiar(gs.best_params_)
     k_gamma = mejores["kernel"] if mejores["kernel"] in ("rbf", "sigmoid") else "rbf"
+    k, C = mejores["kernel"], mejores["C"]
+    tabla_gamma = _corte(res, "param_gamma", "param_C", f"param_kernel == '{k_gamma}'")
+    if k == k_gamma:
+        _marcar(tabla_gamma, mejores["gamma"], C)
     return {"mejores": mejores, "mejor_cv": float(gs.best_score_), "n_combinaciones": len(res),
-            "tabla_cv": _corte(res, "param_kernel", "param_C"),
-            "tabla_train": _corte(res, "param_kernel", "param_C", valor="mean_train_score"),
-            "tabla_gamma": _corte(res, "param_gamma", "param_C", f"param_kernel == '{k_gamma}'"),
+            "tabla_cv": _marcar(_corte(res, "param_kernel", "param_C"), k, C),
+            "tabla_train": _marcar(_corte(res, "param_kernel", "param_C", valor="mean_train_score"), k, C),
+            "tabla_gamma": tabla_gamma,
             "kernel_gamma": k_gamma}
 
 
@@ -110,12 +120,15 @@ def buscar_svr(d):
     gs.fit(d["X_train_esc"], d["y_train_norm"])
     res = _resultados(gs)
     mejores = _limpiar(gs.best_params_)
-    k = mejores["kernel"]
+    k, C = mejores["kernel"], mejores["C"]
+    tabla_gamma = _corte(res, "param_gamma", "param_C", "param_kernel == 'rbf'")
+    if k == "rbf":
+        _marcar(tabla_gamma, mejores["gamma"], C)
     return {"mejores": mejores, "mejor_cv": float(gs.best_score_), "n_combinaciones": len(res),
-            "tabla_cv": _corte(res, "param_kernel", "param_C"),
-            "tabla_train": _corte(res, "param_kernel", "param_C", valor="mean_train_score"),
-            "tabla_epsilon": _corte(res, "param_epsilon", "param_C", f"param_kernel == '{k}'"),
-            "tabla_gamma": _corte(res, "param_gamma", "param_C", "param_kernel == 'rbf'")}
+            "tabla_cv": _marcar(_corte(res, "param_kernel", "param_C"), k, C),
+            "tabla_train": _marcar(_corte(res, "param_kernel", "param_C", valor="mean_train_score"), k, C),
+            "tabla_epsilon": _marcar(_corte(res, "param_epsilon", "param_C", f"param_kernel == '{k}'"), mejores["epsilon"], C),
+            "tabla_gamma": tabla_gamma}
 
 
 def entrenar_svr(d, kernel="rbf", C=10, epsilon=0.1, gamma="scale"):
