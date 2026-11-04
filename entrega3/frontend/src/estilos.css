@@ -35,6 +35,9 @@
   --clase-2: #1baf7a;
   --clase-3: #eda100;
   --clase-4: #e87ba4;
+  --clase-5: #8a63d2;
+  --clase-6: #0aa0b6;
+  --clase-7: #a8792a;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   color: var(--texto);
   background: var(--fondo);
@@ -72,6 +75,9 @@
     --clase-2: #199e70;
     --clase-3: #c98500;
     --clase-4: #d55181;
+    --clase-5: #9b78e6;
+    --clase-6: #109cb2;
+    --clase-7: #b08840;
     color-scheme: dark;
   }
 }

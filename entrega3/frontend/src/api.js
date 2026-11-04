@@ -43,6 +43,8 @@ export const api = {
 
   productos: () => pedir("GET", "/api/productos"),
   actualizarProducto: (id, datos) => pedir("PATCH", `/api/productos/${id}`, datos),
+  crearProducto: (datos) => pedir("POST", "/api/productos", datos),
+  borrarProducto: (id, forzar) => pedir("DELETE", `/api/productos/${id}${forzar ? "?forzar=true" : ""}`),
 
   sesiones: () => pedir("GET", "/api/sesiones"),
   sesion: (id) => pedir("GET", `/api/sesiones/${id}`),
@@ -145,7 +147,8 @@ export function tamano(bytes) {
 // variables CSS (ver estilos.css) con un tono para modo claro y otro para oscuro,
 // tomados de una paleta validada para daltonismo. Como en modo claro tres de
 // ellos tienen poco contraste, el color nunca va solo: siempre con el nombre.
-export const COLORES_CLASE = [0, 1, 2, 3, 4].map((i) => `var(--clase-${i})`);
+// Hasta 8 productos: un color fijo por clase (paleta validada para daltonismo en estilos.css).
+export const COLORES_CLASE = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `var(--clase-${i})`);
 
 export const fechaHora = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
 export const hora = new Intl.DateTimeFormat("es-CO", { timeStyle: "short" });

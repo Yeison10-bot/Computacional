@@ -53,9 +53,18 @@ AJUSTABLES = {"fps_analisis": (1, 10), "confirmacion_s": (1, 15), "quietud_s": (
 ARCHIVO_PARAMETROS = DATOS / "monitor_parametros.json"
 FPS_VIDEO = 12  # fotogramas por segundo de la transmisión en vivo (solo visualización)
 
-# Colores de las categorías en BGR (OpenCV), los mismos de la interfaz web.
-COLORES = {"botella": (214, 120, 42), "lata": (52, 104, 235), "vaso": (122, 175, 27),
-           "paquete": (0, 161, 237), "fruta": (164, 123, 232)}
+# Colores en BGR (OpenCV) de la paleta de la interfaz web; cada categoría toma
+# uno fijo según su nombre (los productos se pueden crear desde la página).
+PALETA_BGR = [(214, 120, 42), (52, 104, 235), (122, 175, 27), (0, 161, 237), (164, 123, 232),
+              (210, 99, 138), (182, 160, 10), (42, 121, 168)]
+COLORES = {"botella": PALETA_BGR[0], "lata": PALETA_BGR[1], "vaso": PALETA_BGR[2],
+           "paquete": PALETA_BGR[3], "fruta": PALETA_BGR[4]}
+
+
+def color_de(categoria):
+    if categoria not in COLORES:
+        COLORES[categoria] = PALETA_BGR[sum(map(ord, categoria)) % len(PALETA_BGR)]
+    return COLORES[categoria]
 
 
 def moda(valores):
@@ -428,7 +437,7 @@ class Monitor:
         for d in detecciones:
             x1, y1 = int((d["x_centro"] - d["ancho"] / 2) * ancho), int((d["y_centro"] - d["alto"] / 2) * alto)
             x2, y2 = int((d["x_centro"] + d["ancho"] / 2) * ancho), int((d["y_centro"] + d["alto"] / 2) * alto)
-            color = COLORES.get(d["categoria"], (255, 255, 255))
+            color = color_de(d["categoria"])
             cv2.rectangle(img, (x1, y1), (x2, y2), color, grosor)
             texto = f"{d['categoria']} {d['confianza']:.0%}"
             (tw, th), _ = cv2.getTextSize(texto, cv2.FONT_HERSHEY_SIMPLEX, escala, 2)

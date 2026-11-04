@@ -1,4 +1,4 @@
-"""Crea la base de datos, sus tablas y el catálogo inicial de los cinco productos.
+"""Crea la base de datos, sus tablas y un catálogo de ejemplo (solo si está vacío).
 
 Ejecutar desde la raíz del proyecto (con el .env configurado):
     .venv\\Scripts\\python.exe database\\crear_bd.py
@@ -56,6 +56,9 @@ def crear_base_si_no_existe():
 def cargar_catalogo():
     with SesionBD() as bd:
         existentes = set(bd.scalars(select(Producto.categoria_yolo)))
+        if existentes:
+            print(f"Catálogo: ya hay {len(existentes)} producto(s); se administra desde la página (Catálogo)")
+            return
         nuevos = 0
         for clase_id, categoria, nombre, precio in CATALOGO:
             if categoria in existentes:

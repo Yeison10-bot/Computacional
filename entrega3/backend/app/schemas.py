@@ -17,9 +17,23 @@ class ProductoOut(BaseModel):
     activo: bool
     cantidad: int
     stock_minimo: int
+    cajas: int = 0          # cajas etiquetadas en el dataset
+    movimientos: int = 0    # ventas, reposiciones y ajustes registrados
+
+
+# Nombre de la clase en YOLO: minúsculas, números y guion bajo (p. ej. "taza_roja").
+PATRON_CATEGORIA = r"^[a-z][a-z0-9_]{1,29}$"
+
+
+class ProductoCrear(BaseModel):
+    categoria_yolo: str = Field(pattern=PATRON_CATEGORIA)
+    nombre: str = Field(min_length=1, max_length=80)
+    precio: float = Field(ge=0)
+    stock_minimo: int = Field(3, ge=0)
 
 
 class ProductoActualizar(BaseModel):
+    categoria_yolo: str | None = Field(None, pattern=PATRON_CATEGORIA)
     nombre: str | None = Field(None, min_length=1, max_length=80)
     precio: float | None = Field(None, ge=0)
     cantidad: int | None = Field(None, ge=0)
