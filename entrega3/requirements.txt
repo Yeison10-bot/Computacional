@@ -1,0 +1,22 @@
+# PyTorch con CUDA se instala ANTES y por separado (no está en PyPI con GPU):
+#   .venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+# Luego:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Visión computacional
+ultralytics          # YOLO: entrenamiento, validación e inferencia
+opencv-python        # captura de video y procesamiento de imágenes
+numpy
+
+# Backend
+fastapi              # API REST
+uvicorn[standard]    # servidor que ejecuta FastAPI
+python-multipart     # permite a FastAPI recibir archivos subidos (videos y fotos)
+sqlalchemy           # acceso a PostgreSQL desde Python
+psycopg[binary]      # controlador de PostgreSQL
+python-dotenv        # lee la configuración del archivo .env
+requests             # el módulo de visión envía eventos a la API
+
+# Evaluación y gráficas
+pandas
+matplotlib

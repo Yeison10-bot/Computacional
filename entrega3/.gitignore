@@ -1,0 +1,37 @@
+# Entorno virtual de Python
+.venv/
+__pycache__/
+*.pyc
+
+# Configuración local con credenciales (se versiona solo .env.example)
+.env
+
+# Salidas de entrenamiento de YOLO (se regeneran)
+runs/
+
+# Videos e imágenes crudas pesadas (respaldar aparte)
+datos/crudos/videos/*
+!datos/crudos/videos/.gitkeep
+datos/crudos/fotos/*
+!datos/crudos/fotos/.gitkeep
+
+# Imágenes derivadas y dataset exportado: se regeneran desde la interfaz
+# (las etiquetas viven en PostgreSQL)
+datos/imagenes/
+datos/dataset/images/
+datos/dataset/labels/
+datos/evidencias/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Entrenamientos (pesos y gráficas, se regeneran)
+datos/entrenamientos/
+vision/modelos/best_anterior.pt
+
+# Videos de evaluación (pesados) y pesos que descarga Ultralytics
+datos/videos_prueba/*
+!datos/videos_prueba/.gitkeep
+weights/
+*.tmp
