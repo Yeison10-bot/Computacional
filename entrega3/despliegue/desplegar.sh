@@ -85,7 +85,8 @@ echo "==> 7. Registro DNS de $DOMINIO"
 CERT=""
 for c in "$(dirname "$CONFIG_TUNEL")/cert.pem" "$HOME/.cloudflared/cert.pem"; do [ -f "$c" ] && CERT="$c" && break; done
 if [ -n "$CERT" ]; then
-  docker run --rm -v "$(dirname "$CERT")":/certificado:ro cloudflare/cloudflared:latest \
+  # --user: cert.pem solo lo puede leer tu usuario (el contenedor usa otro por defecto).
+  docker run --rm --user "$(id -u):$(id -g)" -v "$(dirname "$CERT")":/certificado:ro cloudflare/cloudflared:latest \
     tunnel --origincert /certificado/cert.pem route dns "$TUNEL" "$DOMINIO" \
     || echo "    (si dice que el registro ya existe, no hay problema)"
 else
