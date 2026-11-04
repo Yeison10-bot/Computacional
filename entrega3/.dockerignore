@@ -1,0 +1,14 @@
+.venv
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+!.env.produccion.example
+datos
+weights
+runs
+evaluacion/resultados
+frontend/node_modules
+frontend/dist
+docs/evidencias
+.git

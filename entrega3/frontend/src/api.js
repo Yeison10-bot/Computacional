@@ -8,7 +8,13 @@ async function pedir(metodo, ruta, cuerpo) {
     opciones.body = JSON.stringify(cuerpo);
   }
   const r = await fetch(ruta, opciones);
-  if (!r.ok) throw new Error(await mensajeDeError(r));
+  if (!r.ok) {
+    // Sesión vencida: la aplicación vuelve a la pantalla de ingreso.
+    if (r.status === 401 && !ruta.startsWith("/api/auth/")) window.dispatchEvent(new Event("sesion-vencida"));
+    const error = new Error(await mensajeDeError(r));
+    error.estado = r.status;
+    throw error;
+  }
   return r.status === 204 ? null : r.json();
 }
 
@@ -31,6 +37,10 @@ const consulta = (params) => {
 };
 
 export const api = {
+  yo: () => pedir("GET", "/api/auth/yo"),
+  login: (usuario, clave) => pedir("POST", "/api/auth/login", { usuario, clave }),
+  salir: () => pedir("POST", "/api/auth/salir"),
+
   productos: () => pedir("GET", "/api/productos"),
   actualizarProducto: (id, datos) => pedir("PATCH", `/api/productos/${id}`, datos),
 
@@ -111,8 +121,12 @@ function subirFormulario(ruta, campos, alProgresar) {
       } catch {
         /* sin cuerpo JSON */
       }
-      if (xhr.status >= 200 && xhr.status < 300) resolver(cuerpo);
-      else rechazar(new Error(cuerpo?.detail ?? `Error ${xhr.status}`));
+      if (xhr.status >= 200 && xhr.status < 300) return resolver(cuerpo);
+      if (xhr.status === 401) window.dispatchEvent(new Event("sesion-vencida"));
+      if (xhr.status === 413) {
+        return rechazar(new Error("El archivo pesa más de 100 MB (límite de Cloudflare): graba videos más cortos (≈ 1 minuto)."));
+      }
+      rechazar(new Error(cuerpo?.detail ?? `Error ${xhr.status}`));
     };
     xhr.onerror = () => rechazar(new Error("No se pudo conectar con el servidor"));
     xhr.send(datos);

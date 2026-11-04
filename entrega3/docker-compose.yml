@@ -1,0 +1,65 @@
+# Despliegue en el servidor: API + página web (app) y PostgreSQL (db).
+# Uso (desde esta carpeta, con el archivo .env creado a partir de .env.produccion.example):
+#     docker compose up -d --build
+# La app no publica puertos a Internet: el túnel de Cloudflare la alcanza por la red
+# "inventario-red" (ver despliegue/desplegar.sh). Para probarla en el propio servidor:
+#     curl http://127.0.0.1:8090/api/salud
+
+name: inventario
+
+services:
+  db:
+    image: postgres:17
+    container_name: inventario-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD en .env}
+      POSTGRES_DB: ${DB_NAME:-inventario_cafeteria}
+    volumes:
+      - inventario-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [interna]
+
+  app:
+    build: .
+    image: inventario-app
+    container_name: inventario-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-inventario_cafeteria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      ADMIN_USUARIO: ${ADMIN_USUARIO:-admin}
+      ADMIN_CLAVE: ${ADMIN_CLAVE:?Falta ADMIN_CLAVE en .env (contraseña del login)}
+      SECRET_KEY: ${SECRET_KEY:?Falta SECRET_KEY en .env}
+      CAMARA_SERVIDOR: "false"   # solo la cámara del dispositivo que abre la página
+      COOKIE_SEGURA: "true"      # la página se abre por https (Cloudflare)
+    volumes:
+      - inventario-datos:/app/datos            # fotos, videos, dataset, evidencias, entrenamientos
+      - inventario-modelos:/app/vision/modelos # yolo11n.pt y el best.pt entrenado
+    # El entrenamiento usa procesos auxiliares que comparten memoria (/dev/shm).
+    shm_size: 1gb
+    ports:
+      - "127.0.0.1:8090:8000"   # solo accesible desde el propio servidor (pruebas)
+    networks: [interna, inventario-red]
+
+volumes:
+  inventario-postgres:
+  inventario-datos:
+  inventario-modelos:
+
+networks:
+  interna:
+  # Red con nombre fijo a la que se conecta el contenedor del túnel de Cloudflare.
+  inventario-red:
+    name: inventario-red

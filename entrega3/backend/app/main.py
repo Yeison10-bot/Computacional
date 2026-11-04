@@ -8,13 +8,16 @@ Documentación interactiva: http://localhost:8000/docs
 
 import os
 import threading
+from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import DATOS
+from . import auth
+from .config import DATOS, RAIZ
 from .monitor import monitor
 from .routers import catalogo, dataset, entrenamiento, estadisticas, evaluacion, exportar, inventario
 from .routers import monitor as rutas_monitor
@@ -28,7 +31,7 @@ async def ciclo_de_vida(_app):
     threading.Thread(target=obtener_detector, daemon=True).start()
     # Con MONITOR_AUTOINICIO=true en el .env, la cámara empieza a vigilar la
     # vitrina apenas arranca el servidor, sin entrar a la interfaz.
-    if os.getenv("MONITOR_AUTOINICIO", "false").lower() == "true":
+    if os.getenv("MONITOR_AUTOINICIO", "false").lower() == "true" and rutas_monitor.camara_servidor_permitida():
         try:
             monitor.iniciar(os.getenv("VIDEO_FUENTE", "0"))
         except (ValueError, RuntimeError) as e:
@@ -48,6 +51,12 @@ app = FastAPI(
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5180"],
                    allow_methods=["*"], allow_headers=["*"])
 
+# Login: la API y los archivos exigen sesión (si ADMIN_CLAVE está configurada).
+app.middleware("http")(auth.exigir_sesion)
+if not auth.login_activo():
+    print("AVISO: ADMIN_CLAVE no está configurada: el login está desactivado (solo para desarrollo).")
+
+app.include_router(auth.router)
 app.include_router(catalogo.router)
 app.include_router(inventario.router)
 app.include_router(rutas_monitor.router)
@@ -65,3 +74,20 @@ app.mount("/archivos", StaticFiles(directory=DATOS), name="archivos")
 @app.get("/api/salud", tags=["Sistema"])
 def salud():
     return {"estado": "ok"}
+
+
+# En producción el frontend ya compilado (npm run build → frontend/dist) lo sirve
+# esta misma API: un solo servidor, un solo dominio. En desarrollo lo sirve Vite.
+FRONTEND = Path(os.getenv("FRONTEND_DIST", RAIZ / "frontend" / "dist"))
+if (FRONTEND / "index.html").exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
+
+    @app.get("/{ruta:path}", include_in_schema=False)
+    def frontend(ruta: str):
+        if ruta.startswith(("api/", "archivos/")):
+            raise HTTPException(404, "No encontrado")
+        archivo = (FRONTEND / ruta).resolve()
+        if ruta and archivo.is_file() and archivo.is_relative_to(FRONTEND.resolve()):
+            return FileResponse(archivo)
+        # Rutas de React (/vitrina, /sesiones/3...): siempre index.html.
+        return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache"})

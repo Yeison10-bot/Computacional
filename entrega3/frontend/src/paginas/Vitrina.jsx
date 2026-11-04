@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { COLORES_CLASE, FASES, TIPOS_MOVIMIENTO, api, hora, pesos } from "../api.js";
 import { useAvisos } from "../componentes/Avisos.jsx";
 import { useCamaraNavegador } from "../componentes/CamaraNavegador.jsx";
+import { useSesion } from "../componentes/Sesion.jsx";
 import {
   IconoAlerta, IconoCamara, IconoFlecha, IconoInfo, IconoPlay, IconoStop, IconoSubir, IconoVision,
 } from "../componentes/Iconos.jsx";
@@ -102,6 +103,7 @@ function AjustesMonitor({ parametros, alGuardar }) {
 function EnVivo({ productos }) {
   const avisar = useAvisos();
   const camara = useCamaraNavegador();
+  const { camara_servidor: hayCamaraServidor } = useSesion();
   const [estado, setEstado] = useState(null);
   const [tipoFuente, setTipoFuente] = useState("navegador"); // "navegador" | "servidor"
   const [camaraNavegador, setCamaraNavegador] = useState("");
@@ -212,12 +214,12 @@ function EnVivo({ productos }) {
             {estado.fuente === "navegador" && !camara.abierta && (
               <div className="alerta aviso" style={{ marginTop: 12 }}>
                 <IconoAlerta />
-                <span style={{ flex: 1 }}>El servidor espera imágenes de la cámara de este computador, pero no se están enviando (¿recargaste la página?).</span>
+                <span style={{ flex: 1 }}>El servidor espera imágenes de la cámara del dispositivo, pero no se están enviando (¿recargaste la página o se cerró en otro dispositivo?).</span>
                 <button className="pequeno" onClick={reconectar}>Reconectar cámara</button>
               </div>
             )}
             <div className="metricas-vivo">
-              <span>Fuente <b>{estado.fuente === "navegador" ? "cámara de este computador"
+              <span>Fuente <b>{estado.fuente === "navegador" ? "cámara del dispositivo"
                 : /^\d+$/.test(estado.fuente) ? `cámara ${estado.fuente} del servidor` : "video"}</b></span>
               {estado.fuente === "navegador" && camara.abierta && <span>Enviados <b>{camara.enviados}</b></span>}
               <span>Analizados <b>{estado.fotogramas}</b></span>
@@ -236,11 +238,17 @@ function EnVivo({ productos }) {
             {estado.error && <div className="alerta error"><IconoAlerta /><span>{estado.error}</span></div>}
             {camara.error && <div className="alerta error"><IconoAlerta /><span>{camara.error}</span></div>}
 
-            <div className="opciones-modo" style={{ margin: 0 }}>
+            {!hayCamaraServidor && (
+              <p className="subtitulo" style={{ margin: 0 }}>
+                Se usa la cámara de este dispositivo (en el celular, la trasera). Déjalo fijo mirando la vitrina y con
+                esta página abierta: la pantalla no se apagará mientras vigila.
+              </p>
+            )}
+            {hayCamaraServidor && <div className="opciones-modo" style={{ margin: 0 }}>
               <label className="opcion-modo">
                 <input type="radio" name="fuente" checked={tipoFuente === "navegador"} onChange={() => setTipoFuente("navegador")} />
                 <span>
-                  Cámara de este computador
+                  Cámara de este dispositivo
                   <small>Se abre desde el navegador (la webcam o el iPhone con Iriun). Mantén esta pestaña abierta: puedes navegar por las demás secciones.</small>
                 </span>
               </label>
@@ -251,14 +259,14 @@ function EnVivo({ productos }) {
                   <small>El backend la abre con OpenCV y la vigila aunque cierres el navegador. Ideal para dejarla instalada.</small>
                 </span>
               </label>
-            </div>
+            </div>}
 
             {tipoFuente === "navegador" ? (
               camara.dispositivos.length > 1 && (
                 <label className="campo">
                   Cámara
                   <select value={camaraNavegador} onChange={(e) => setCamaraNavegador(e.target.value)}>
-                    <option value="">Predeterminada del navegador</option>
+                    <option value="">Trasera / predeterminada</option>
                     {camara.dispositivos.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Cámara ${i + 1}`}</option>)}
                   </select>
                 </label>

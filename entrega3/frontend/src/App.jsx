@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api } from "./api.js";
 import { ProveedorAvisos } from "./componentes/Avisos.jsx";
 import { ProveedorCamara } from "./componentes/CamaraNavegador.jsx";
+import { ProveedorSesion, useSesion } from "./componentes/Sesion.jsx";
 import {
   IconoCamara, IconoCarpeta, IconoCatalogo, IconoEntrenar, IconoEtiqueta, IconoExportar, IconoGrafica, IconoMeta, IconoHistorial, IconoPanel, IconoVision,
 } from "./componentes/Iconos.jsx";
@@ -34,13 +35,23 @@ function useConexion() {
 }
 
 export default function App() {
+  return (
+    <ProveedorAvisos>
+      <ProveedorSesion>
+        <Aplicacion />
+      </ProveedorSesion>
+    </ProveedorAvisos>
+  );
+}
+
+function Aplicacion() {
   const { api: conexion, camara } = useConexion();
+  const sesion = useSesion();
   // En el celular el menú se abre con el botón ☰ y se cierra al elegir una página.
   const [menuAbierto, setMenuAbierto] = useState(false);
   const ubicacion = useLocation();
   useEffect(() => setMenuAbierto(false), [ubicacion.pathname]);
   return (
-    <ProveedorAvisos>
       <ProveedorCamara>
       <div className="app">
         <nav className={`menu ${menuAbierto ? "abierto" : ""}`}>
@@ -75,6 +86,12 @@ export default function App() {
               <span className={`estado-conexion ${conexion}`} />
               {{ ok: "Servidor conectado", error: "Sin conexión con el servidor", pendiente: "Conectando…" }[conexion]}
             </div>
+            {sesion.login_activo && (
+              <div className="sesion-usuario">
+                <span>👤 {sesion.usuario}</span>
+                <button className="pequeno" onClick={sesion.salir}>Salir</button>
+              </div>
+            )}
           </div>
         </nav>
         <main className="contenido">
@@ -101,6 +118,5 @@ export default function App() {
         </main>
       </div>
       </ProveedorCamara>
-    </ProveedorAvisos>
   );
 }

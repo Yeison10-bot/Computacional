@@ -1,6 +1,7 @@
 """Control del monitoreo continuo y transmisión del video anotado."""
 
 import asyncio
+import os
 
 import cv2
 import numpy as np
@@ -12,6 +13,13 @@ from ..monitor import monitor
 from . import entrenamiento
 
 router = APIRouter(prefix="/api/monitor", tags=["Monitoreo continuo"])
+
+
+def camara_servidor_permitida():
+    """En el servidor desplegado no hay cámara conectada: solo se permite la del
+    dispositivo que abre la página (fuente "navegador"). Además así nadie puede
+    pedirle al servidor que abra archivos arbitrarios como "video"."""
+    return os.getenv("CAMARA_SERVIDOR", "true").lower() == "true"
 
 
 class Iniciar(BaseModel):
@@ -28,6 +36,8 @@ def estado():
 def iniciar(datos: Iniciar):
     if entrenamiento.en_curso():
         raise HTTPException(409, "Hay un entrenamiento en curso: la GPU está ocupada")
+    if datos.fuente.strip() != "navegador" and not camara_servidor_permitida():
+        raise HTTPException(400, "En este servidor solo se puede usar la cámara del dispositivo que abre la página")
     try:
         monitor.iniciar(datos.fuente.strip().strip('"'))
     except RuntimeError as e:
@@ -79,6 +89,8 @@ def detener():
 def camaras():
     """Cámaras conectadas (índices 0 a 4). Con el monitoreo activo no se prueban:
     abrir la misma cámara dos veces falla en Windows."""
+    if not camara_servidor_permitida():
+        return []
     if monitor.activo:
         raise HTTPException(409, "Detén el monitoreo para buscar cámaras")
     cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)

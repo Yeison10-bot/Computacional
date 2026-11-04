@@ -289,6 +289,13 @@ th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   box-shadow: var(--sombra-alta); border-radius: var(--radio-sm); padding: 6px 10px; font-size: 0.82rem; pointer-events: none; white-space: nowrap; }
 .tooltip-grafica div { color: var(--texto-suave); }
 
+/* Pantalla de ingreso */
+.pantalla-login { min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: var(--fondo); color: var(--texto); }
+.tarjeta-login { width: min(400px, 100%); display: grid; gap: 12px; margin: 0; }
+.tarjeta-login h2 { margin: 0; }
+.tarjeta-login input { width: 100%; box-sizing: border-box; }
+.sesion-usuario { justify-content: space-between; color: var(--menu-texto-fuerte); }
+
 /* ================================================================ Celular y tableta */
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); align-content: start; }

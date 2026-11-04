@@ -1,12 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-// Cámara del computador abierta desde el navegador para el monitoreo continuo.
+// Cámara del dispositivo que abre la página (computador o celular) para el monitoreo continuo.
 // Envía unos 5 fotogramas por segundo al backend (POST /api/monitor/fotograma),
 // que los analiza con el mismo algoritmo que una cámara conectada al servidor.
 // Vive a nivel de toda la aplicación: cambiar de página no corta el envío.
 
 const FPS_ENVIO = 5;
-const ANCHO_MAXIMO = 1280;
+// 960 px bastan (YOLO analiza a 640) y alivian la subida por el túnel desde el celular.
+const ANCHO_MAXIMO = 960;
+const CALIDAD_JPEG = 0.8;
 const Contexto = createContext(null);
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,6 +24,7 @@ export function ProveedorCamara({ children }) {
   const flujo = useRef(null);
   const video = useRef(null);
   const enviando = useRef(false);
+  const bloqueo = useRef(null); // Wake Lock de la pantalla
 
   const listar = useCallback(async () => {
     const todos = (await navigator.mediaDevices?.enumerateDevices()) ?? [];
@@ -37,6 +40,8 @@ export function ProveedorCamara({ children }) {
     flujo.current?.getTracks().forEach((t) => t.stop());
     flujo.current = null;
     video.current?.remove();
+    bloqueo.current?.release().catch(() => {});
+    bloqueo.current = null;
     video.current = null;
     setFlujoVisible(null);
     setAbierta(false);
@@ -47,13 +52,15 @@ export function ProveedorCamara({ children }) {
   const abrir = useCallback(async (dispositivoId) => {
     setError("");
     if (!navigator.mediaDevices) {
-      setError("Este navegador no permite usar la cámara (se necesita http://localhost o https).");
+      setError("Este navegador no permite usar la cámara: la página debe abrirse con https:// (o en http://localhost).");
       return false;
     }
     try {
       cerrar();
       flujo.current = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, ...(dispositivoId && { deviceId: { exact: dispositivoId } }) },
+        // Sin cámara elegida se pide la trasera ("environment"): en el celular es la que mira la vitrina.
+        video: { width: { ideal: 1280 }, height: { ideal: 720 },
+          ...(dispositivoId ? { deviceId: { exact: dispositivoId } } : { facingMode: { ideal: "environment" } }) },
       });
       // Video de captura: va dentro del documento (invisible), porque algunos
       // navegadores no actualizan los fotogramas de un <video> suelto y la captura sale negra.
@@ -65,6 +72,8 @@ export function ProveedorCamara({ children }) {
       v.srcObject = flujo.current;
       await v.play();
       video.current = v;
+      // Mantiene la pantalla encendida: si el celular se bloquea, el navegador apaga la cámara.
+      try { bloqueo.current = await navigator.wakeLock?.request("screen"); } catch { /* no disponible */ }
       setFlujoVisible(flujo.current);
       setAbierta(true);
       listar(); // con el permiso concedido ya aparecen los nombres de las cámaras
@@ -92,9 +101,14 @@ export function ProveedorCamara({ children }) {
         lienzo.width = Math.round(v.videoWidth * escala);
         lienzo.height = Math.round(v.videoHeight * escala);
         lienzo.getContext("2d").drawImage(v, 0, 0, lienzo.width, lienzo.height);
-        const jpeg = await new Promise((r) => lienzo.toBlob(r, "image/jpeg", 0.85));
+        const jpeg = await new Promise((r) => lienzo.toBlob(r, "image/jpeg", CALIDAD_JPEG));
         try {
           const r = await fetch("/api/monitor/fotograma", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: jpeg });
+          if (r.status === 401) {
+            window.dispatchEvent(new Event("sesion-vencida"));
+            cerrar();
+            break;
+          }
           if (r.status === 409) {
             cerrar(); // el monitoreo se detuvo en el servidor: se libera la cámara
             break;
