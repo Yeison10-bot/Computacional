@@ -36,13 +36,15 @@ def resumen(bd: Session = Depends(obtener_bd)):
     }
 
 
-def asignar_particiones(imagenes, val, test, semilla):
-    """Reparte las imágenes en train/val/test por GRUPOS, no por imagen.
+def asignar_particiones(imagenes, val, test, semilla, hueco=5):
+    """Reparte las imágenes en train/val/test por BLOQUES TEMPORALES dentro de cada video.
 
-    Grupo = el video del que salió el fotograma (las fotos sueltas se agrupan por
-    sesión). Fotogramas del mismo video son casi idénticos: si quedaran unos en
-    train y otros en val, la métrica de validación saldría inflada (fuga de datos).
-    Las sesiones de prueba de generalización van completas a test.
+    Con pocos videos (p. ej. uno por producto), repartir videos enteros deja clases
+    sin ejemplos en train. Aquí cada video aporta un bloque a cada partición, así las
+    clases quedan en las tres. Entre bloques se descartan `hueco` fotogramas para que
+    no haya fotogramas casi idénticos a ambos lados de un corte. Las sesiones de
+    prueba de generalización van completas a test.
+    Las imágenes descartadas por el hueco no aparecen en el resultado.
     """
     advertencias = []
     asignacion = {}
@@ -55,33 +57,47 @@ def asignar_particiones(imagenes, val, test, semilla):
         else:
             grupos[("fotos", img.sesion_id)].append(img)
 
-    claves = sorted(grupos)
-    random.Random(semilla).shuffle(claves)
-    if len(claves) < 3:
-        advertencias.append(
-            f"Solo hay {len(claves)} grupo(s) (videos o sesiones de fotos): se dividió por imagen. "
-            "Las métricas de validación pueden salir optimistas; sube más videos.")
-        sueltas = [img for c in claves for img in grupos[c]]
-        random.Random(semilla).shuffle(sueltas)
-        grupos = {("img", i.id): [i] for i in sueltas}
-        claves = list(grupos)
+    for clave, imgs in sorted(grupos.items()):
+        imgs.sort(key=lambda i: i.id)  # orden de extracción = orden temporal
+        n = len(imgs)
+        n_val, n_test = round(n * val), round(n * test)
+        h = hueco if clave[0] == "video" else 0
+        if n - n_val - n_test - 2 * h < 1:
+            h = 0
+            advertencias.append(f"El grupo {clave} es muy pequeño: se omitió el hueco entre bloques.")
+        n_train = n - n_val - n_test - 2 * h
+        if n_train < 1:
+            n_val = n_test = 0
+            n_train = n
+            advertencias.append(f"El grupo {clave} es muy pequeño: todo va a train.")
 
-    total = sum(len(grupos[c]) for c in claves)
-    cupo = {"val": val * total, "test": test * total}
-    conteo = Counter()
-    # Se llenan primero val y test hasta su cupo, el resto va a train; se deja
-    # siempre al menos un grupo para train.
-    for i, clave in enumerate(claves):
-        quedan = len(claves) - i
-        if conteo["val"] < cupo["val"] and quedan > 1:
-            destino = "val"
-        elif conteo["test"] < cupo["test"] and quedan > 1:
-            destino = "test"
-        else:
-            destino = "train"
-        for img in grupos[clave]:
-            asignacion[img.id] = destino
-        conteo[destino] += len(grupos[clave])
+        # Orden de los bloques val/test varía por grupo (determinista con la semilla)
+        orden = ["val", "test"]
+        random.Random(f"{semilla}-{clave}").shuffle(orden)
+        tam = {"val": n_val, "test": n_test}
+
+        for img in imgs[:n_train]:
+            asignacion[img.id] = "train"
+        pos = n_train + h
+        for destino in orden:
+            for img in imgs[pos:pos + tam[destino]]:
+                asignacion[img.id] = destino
+            pos += tam[destino] + h
+        # lo que cae en los huecos no se asigna y se omite al exportar
+
+    # Cobertura de clases por partición
+    cajas = {p: Counter() for p in PARTICIONES}
+    nombres = {}
+    for img in imagenes:
+        part = asignacion.get(img.id)
+        if part:
+            for a in img.anotaciones:
+                cajas[part][a.producto.clase_id] += 1
+                nombres[a.producto.clase_id] = a.producto.categoria_yolo
+    for p in ("train", "val"):
+        for cid, nom in sorted(nombres.items()):
+            if cajas[p][cid] == 0:
+                advertencias.append(f"La clase {cid} ({nom}) no tiene cajas en '{p}'.")
     return asignacion, advertencias
 
 
@@ -108,7 +124,9 @@ def exportar(param: ExportarParametros, bd: Session = Depends(obtener_bd)):
     bd.execute(Imagen.__table__.update().values(particion=None))
     resumen_part = {p: {"imagenes": 0, "cajas": Counter()} for p in PARTICIONES}
     for img in imagenes:
-        part = asignacion[img.id]
+        part = asignacion.get(img.id)
+        if part is None:  # fotograma de separación entre bloques: no se exporta
+            continue
         img.particion = part
         origen = DATOS / img.ruta
         nombre = origen.name
