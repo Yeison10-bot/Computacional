@@ -57,6 +57,8 @@ nano .env && docker compose up -d           # cambiar la contraseña del login
 scp "D:\Tercer Corte\Vision_Computacional\vision\modelos\best.pt" yeison10@100.122.55.32:/tmp/best.pt
 # en el servidor:
 docker cp /tmp/best.pt inventario-app:/app/vision/modelos/best.pt
+# Copia también best.json (umbrales de confianza por categoría) de la misma manera;
+# sin él, o si es de otro best.pt, el detector usa 0.4 para todas las categorías.
 # y en la página: Entrenar modelo / Vitrina → el modelo se recarga al iniciar el monitoreo
 # (o: curl -X POST con sesión a /api/vision/recargar; lo más simple: docker compose restart app)
 ```

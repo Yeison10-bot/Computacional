@@ -23,6 +23,13 @@ Hilos: un lector toma los fotogramas de la cámara (o los recibe del navegador),
 el analizador aplica el algoritmo a la velocidad configurada, y un publicador
 dibuja las últimas detecciones sobre el video para verlo en vivo con fluidez,
 independiente de la velocidad del análisis.
+
+Fotogramas dudosos: cuando la escena está quieta y el modelo duda (una detección
+apenas pasa el umbral, o el conteo de una categoría no logra mayoría), el
+fotograma se guarda SIN recuadros en la sesión de captura «MON» como imagen
+pendiente de etiquetar. Son justo los ejemplos que le faltan al modelo, tomados
+con la cámara y la escena reales; etiquetarlos y reentrenar es la forma más
+directa de mejorar la detección.
 """
 
 import json
@@ -34,9 +41,12 @@ from datetime import datetime
 import cv2
 import numpy as np
 
-from .config import DATOS, EVIDENCIAS
+from sqlalchemy import select
+
+from .config import DATOS, EVIDENCIAS, IMAGENES
 from .db import SesionBD
 from .inventario_logica import confianza_media, registrar_conteo
+from .models import ArchivoMedia, Imagen, SesionCaptura
 from .vision import obtener_detector
 
 PARAMETROS = {
@@ -52,6 +62,15 @@ PARAMETROS = {
 AJUSTABLES = {"fps_analisis": (1, 10), "confirmacion_s": (1, 15), "quietud_s": (0.5, 5), "ventana_s": (0.6, 5)}
 ARCHIVO_PARAMETROS = DATOS / "monitor_parametros.json"
 FPS_VIDEO = 12  # fotogramas por segundo de la transmisión en vivo (solo visualización)
+
+# Fotogramas dudosos que se guardan para etiquetar (ver el encabezado del módulo).
+DUDOSOS = {
+    "sesion": "MON",        # código de la sesión de captura donde quedan
+    "margen": 0.10,         # una detección a menos de esto de su umbral es dudosa
+    "espera_s": 8.0,        # tiempo mínimo entre dos fotogramas guardados
+    "cambio_minimo": 3.0,   # diferencia media de gris (0-255) con el último guardado
+    "maximo": 40,           # tope por cada inicio del monitoreo
+}
 
 # Colores en BGR (OpenCV) de la paleta de la interfaz web; cada categoría toma
 # uno fijo según su nombre (los productos se pueden crear desde la página).
@@ -165,7 +184,8 @@ class LogicaRetiros:
             fase = "confirmando"
         else:
             fase = "estable"
-        return inicial, confirmados, {"modas": modas, "quieto": quieto, "fraccion": fraccion, "fase": fase}
+        return inicial, confirmados, {"modas": modas, "certeza": certeza, "quieto": quieto,
+                                      "fraccion": fraccion, "fase": fase}
 
 
 class LectorVideo(threading.Thread):
@@ -248,7 +268,8 @@ class Monitor:
                 "fps": 0.0, "inferencia_ms": 0.0, "movimiento": False, "fraccion_movimiento": 0.0,
                 "categorias": [], "conteo_actual": {}, "moda": {}, "estable": None, "pendientes": {},
                 "eventos": [], "fotogramas": 0, "recibidos": 0, "detecciones": [], "resolucion": None,
-                "modelo": None, "parametros": self.parametros, **extra}
+                "modelo": None, "parametros": self.parametros,
+                "dudosos_guardados": 0, "dudosos_error": None, **extra}
 
     @property
     def activo(self):
@@ -335,7 +356,10 @@ class Monitor:
         with self._candado:
             self._estado.update(categorias=categorias, modelo=detector.info(), fase="iniciando")
 
+        from vision.detector import MemoriaDetecciones  # importación diferida: carga PyTorch
         logica = LogicaRetiros(categorias, self.parametros)
+        memoria = MemoriaDetecciones()
+        dudoso = {"t": None, "gris": None}  # último fotograma dudoso guardado
         ultimo_numero = 0
         tiempos = deque(maxlen=10)
 
@@ -360,7 +384,8 @@ class Monitor:
 
             # Paso 1: detección.
             t0 = time.perf_counter()
-            detecciones = detector.detectar(fotograma)
+            detecciones = detector.detectar(fotograma, memoria.previas(ahora))
+            memoria.actualizar(ahora, detecciones)
             inferencia_ms = (time.perf_counter() - t0) * 1000
             self._detecciones = detecciones
             conteo = Counter(d["categoria"] for d in detecciones)
@@ -372,6 +397,10 @@ class Monitor:
                                 "Monitoreo iniciado: inventario igualado a lo que ve la cámara")
             if confirmados:
                 self._registrar(confirmados, list(confirmados), "movimientos", fotograma, detecciones)
+
+            if (logica.estable is not None and info["quieto"]
+                    and self._es_dudoso(detector, detecciones, info["certeza"], p)):
+                self._guardar_dudoso(fotograma, logica.gris_anterior, ahora, dudoso)
 
             tiempos.append(ahora)
             fps = (len(tiempos) - 1) / (tiempos[-1] - tiempos[0]) if len(tiempos) > 1 else 0.0
@@ -411,6 +440,61 @@ class Monitor:
                                                    "fecha_hora": datetime.now().astimezone().isoformat()})
             self._estado["eventos"][:0] = nuevos
             del self._estado["eventos"][30:]
+
+    # ------------------------------------------------------------------ fotogramas dudosos
+
+    @staticmethod
+    def _es_dudoso(detector, detecciones, certeza, p):
+        """El modelo duda: una detección se sostiene solo por histéresis o apenas pasa
+        su umbral, o el conteo de alguna categoría salta entre fotogramas."""
+        if any(c < p["mayoria"] for c in certeza.values()):
+            return True
+        return any(d.get("sostenida") or d["confianza"] < detector.umbral(d["categoria"]) + DUDOSOS["margen"]
+                   for d in detecciones)
+
+    def _guardar_dudoso(self, fotograma, gris, ahora, ultimo):
+        """Guarda el fotograma (sin recuadros) como imagen pendiente de la sesión «MON».
+        Un fallo aquí no detiene el monitoreo: se muestra y se deja de guardar."""
+        with self._candado:
+            if self._estado["dudosos_error"] or self._estado["dudosos_guardados"] >= DUDOSOS["maximo"]:
+                return
+        if ultimo["t"] is not None:
+            if ahora - ultimo["t"] < DUDOSOS["espera_s"]:
+                return
+            # La misma escena dudosa no se guarda dos veces: una copia basta.
+            if float(np.mean(cv2.absdiff(gris, ultimo["gris"]))) < DUDOSOS["cambio_minimo"]:
+                return
+        try:
+            codigo = DUDOSOS["sesion"]
+            carpeta = IMAGENES / codigo
+            carpeta.mkdir(parents=True, exist_ok=True)
+            destino = carpeta / f"{codigo}_{datetime.now():%Y%m%d_%H%M%S_%f}.jpg"
+            if not cv2.imwrite(str(destino), fotograma, [cv2.IMWRITE_JPEG_QUALITY, 95]):
+                raise OSError(f"no se pudo escribir {destino.name}")
+            ruta = destino.relative_to(DATOS).as_posix()
+            with SesionBD() as bd:
+                sesion = bd.scalar(select(SesionCaptura).where(SesionCaptura.codigo == codigo))
+                if sesion is None:
+                    sesion = SesionCaptura(codigo=codigo, descripcion="Fotogramas dudosos del monitoreo "
+                                           "(guardados automáticamente para etiquetar)")
+                    bd.add(sesion)
+                    bd.flush()
+                # Cada fotograma se registra como una foto, igual que las subidas a mano.
+                archivo = ArchivoMedia(sesion_id=sesion.id, tipo="foto", nombre_original=destino.name,
+                                       ruta=ruta, tamano_bytes=destino.stat().st_size, estado="procesado",
+                                       detalle="Fotograma dudoso del monitoreo")
+                bd.add(archivo)
+                bd.flush()
+                bd.add(Imagen(sesion_id=sesion.id, archivo_id=archivo.id, ruta=ruta,
+                              ancho=fotograma.shape[1], alto=fotograma.shape[0]))
+                bd.commit()
+        except Exception as e:
+            with self._candado:
+                self._estado["dudosos_error"] = f"{type(e).__name__}: {e}"
+            return
+        ultimo["t"], ultimo["gris"] = ahora, gris
+        with self._candado:
+            self._estado["dudosos_guardados"] += 1
 
     # ------------------------------------------------------------------ video en vivo
 

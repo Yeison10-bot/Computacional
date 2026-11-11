@@ -9,11 +9,13 @@ Durante el entrenamiento escribe <salida>/progreso.json después de cada época
 (la interfaz lo lee para mostrar el avance). Al terminar:
   1. Evalúa el mejor modelo en la partición de validación y en la de prueba
      (mAP50, mAP50-95, precisión y recall, global y por categoría).
-  2. Copia el mejor modelo a vision/modelos/best.pt (el anterior queda como
-     best_anterior.pt), y la API lo empieza a usar.
+  2. Calcula el umbral de confianza de cada categoría (curva F1 de validación).
+  3. Copia el mejor modelo a vision/modelos/best.pt (el anterior queda como
+     best_anterior.pt) junto con best.json (los umbrales), y la API lo empieza a usar.
 """
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -64,6 +66,37 @@ def metricas(resultado):
     return {"precision": num(caja.mp), "recall": num(caja.mr), "mAP50": num(caja.map50),
             "mAP50_95": num(caja.map), "por_clase": por_clase,
             "inferencia_ms": num(resultado.speed.get("inference"))}
+
+
+# Aumentos para una cámara que mira la vitrina desde arriba: un producto puede
+# estar en cualquier orientación, así que voltear la imagen en vertical es tan
+# válido como en horizontal (juntos equivalen a girarla 180°). El giro libre se
+# deja moderado: YOLO recalcula la caja como el rectángulo recto que envuelve a
+# la caja girada, y con giros grandes las cajas de empaques alargados quedan
+# holgadas, lo que empeora la separación de productos pegados. Las orientaciones
+# intermedias deben venir de las fotos reales.
+AUMENTOS = {"flipud": 0.5, "fliplr": 0.5, "degrees": 20.0}
+
+UMBRAL_MIN, UMBRAL_MAX = 0.25, 0.60
+
+
+def umbrales_por_clase(resultado):
+    """Umbral de confianza de cada categoría a partir de la curva F1 de validación.
+
+    Se toma la confianza MÁS BAJA cuyo F1 queda a menos del 2 % del máximo: la
+    curva suele ser una meseta, y en la vitrina real las confianzas son menores
+    que en validación, así que conviene el extremo que favorece no perder productos.
+    Se limita a un rango razonable porque validación se parece a entrenamiento.
+    """
+    caja = resultado.box
+    umbrales = {}
+    for i, clase in enumerate(caja.ap_class_index):
+        curva = caja.f1_curve[i]
+        if curva.max() <= 0:
+            continue  # la clase no se detectó nunca: se queda con el umbral general
+        indice = int((curva >= curva.max() * 0.98).argmax())
+        umbrales[resultado.names[int(clase)]] = round(min(UMBRAL_MAX, max(UMBRAL_MIN, float(caja.px[indice]))), 2)
+    return umbrales
 
 
 def contar_imagenes(particion):
@@ -142,7 +175,7 @@ def main():
         progreso.guardar(fase="entrenando", mensaje="Primera época (la primera tarda más: prepara el dataset)…")
         modelo.train(data=str(DATA_YAML), epochs=args.epocas, imgsz=args.imgsz, batch=args.lote,
                      patience=args.paciencia, device=dispositivo, project=str(salida), name="train",
-                     exist_ok=True, workers=2, seed=42, verbose=False, plots=True)
+                     exist_ok=True, workers=2, seed=42, verbose=False, plots=True, **AUMENTOS)
 
         carpeta_train = salida / "train"
         mejor = carpeta_train / "weights" / "best.pt"
@@ -154,17 +187,26 @@ def main():
         final = YOLO(str(mejor))
         resultado = {"duracion_s": round(time.monotonic() - inicio), "dispositivo": "GPU" if dispositivo == 0 else "CPU",
                      "epocas_completadas": progreso.datos["epoca"]}
-        resultado["val"] = metricas(final.val(data=str(DATA_YAML), split="val", device=dispositivo,
-                                              project=str(salida), name="val", exist_ok=True, verbose=False))
+        validacion = final.val(data=str(DATA_YAML), split="val", device=dispositivo,
+                               project=str(salida), name="val", exist_ok=True, verbose=False)
+        resultado["val"] = metricas(validacion)
+        resultado["umbrales"] = umbrales_por_clase(validacion)
         if contar_imagenes("test"):
             resultado["test"] = metricas(final.val(data=str(DATA_YAML), split="test", device=dispositivo,
                                                    project=str(salida), name="test", exist_ok=True, verbose=False))
 
         # El modelo nuevo pasa a ser el de la API; el anterior se conserva por si hay que volver.
         destino = MODELOS / "best.pt"
+        umbrales_json = destino.with_suffix(".json")
         if destino.exists():
             shutil.copy2(destino, MODELOS / "best_anterior.pt")
+            if umbrales_json.exists():
+                shutil.copy2(umbrales_json, MODELOS / "best_anterior.json")
         shutil.copy2(mejor, destino)
+        # El sha256 liga los umbrales con estos pesos: el detector los ignora si no coinciden.
+        umbrales_json.write_text(json.dumps(
+            {"sha256": hashlib.sha256(destino.read_bytes()).hexdigest(), "entrenamiento": salida.name,
+             "umbrales": resultado["umbrales"]}, indent=2, ensure_ascii=False), encoding="utf-8")
         resultado["modelo"] = str(destino.relative_to(RAIZ))
 
         graficas = [f"train/{g}" for g in GRAFICAS if (carpeta_train / g).exists()]

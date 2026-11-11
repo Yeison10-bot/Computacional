@@ -38,6 +38,8 @@ def analizar_video(ruta, detector, parametros=None, al_progresar=None):
     salto = max(1, round(fps_video / parametros["fps_analisis"]))
     categorias = list(detector.categorias_detectables)
     logica = LogicaRetiros(categorias, parametros)
+    from vision.detector import MemoriaDetecciones  # importación diferida: carga PyTorch
+    memoria = MemoriaDetecciones()  # misma histéresis que el monitoreo en vivo
     eventos, inicio_s, inicial = [], None, None
     tiempos_inferencia = []
     indice = 0
@@ -53,7 +55,9 @@ def analizar_video(ruta, detector, parametros=None, al_progresar=None):
                     break
                 t = indice / fps_video
                 t0 = time.perf_counter()
-                conteo = Counter(d["categoria"] for d in detector.detectar(fotograma))
+                detecciones = detector.detectar(fotograma, memoria.previas(t))
+                memoria.actualizar(t, detecciones)
+                conteo = Counter(d["categoria"] for d in detecciones)
                 tiempos_inferencia.append((time.perf_counter() - t0) * 1000)
                 previo = dict(logica.estable) if logica.estable else None
                 ini, confirmados, _ = logica.paso(t, fotograma, conteo)

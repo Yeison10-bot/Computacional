@@ -228,6 +228,8 @@ function EnVivo({ productos }) {
               <span>Inferencia <b>{estado.inferencia_ms} ms</b></span>
               <span>Movimiento <b>{(estado.fraccion_movimiento * 100).toFixed(1)} %</b> de la imagen</span>
               {estado.modelo && <span>Modelo <b>{estado.modelo.modelo}</b></span>}
+              {estado.dudosos_guardados > 0 && <span title="Fotogramas en los que el modelo dudó: quedan en la sesión MON para etiquetarlos">Dudosos guardados <b>{estado.dudosos_guardados}</b></span>}
+              {estado.dudosos_error && <span title={estado.dudosos_error}>No se pudieron guardar los dudosos</span>}
             </div>
             <button className="peligro" style={{ marginTop: 14 }} disabled={ocupado} onClick={detener}>
               <IconoStop /> Detener monitoreo
