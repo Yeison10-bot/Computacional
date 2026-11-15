@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import ImportarCarpetas from "../componentes/ImportarCarpetas.jsx";
 
 const ILUMINACIONES = ["Luz de día", "Lámpara / noche", "Mixta", "Otra"];
 const FORMULARIO_VACIO = { descripcion: "", iluminacion: ILUMINACIONES[0], superficie: "", prueba_generalizacion: false };
@@ -10,10 +11,12 @@ export default function Sesiones() {
   const [sesiones, setSesiones] = useState([]);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [error, setError] = useState("");
+  const [importando, setImportando] = useState(false);
   const navegar = useNavigate();
 
+  const cargar = () => api.sesiones().then(setSesiones).catch((e) => setError(e.message));
   useEffect(() => {
-    api.sesiones().then(setSesiones).catch((e) => setError(e.message));
+    cargar();
   }, []);
 
   async function crear(e) {
@@ -40,7 +43,9 @@ export default function Sesiones() {
             Cada sesión reúne tomas con la misma luz y superficie. Variar las condiciones entre sesiones hace más robusto al modelo.
           </p>
         </div>
+        <button type="button" onClick={() => setImportando(true)}>Importar carpetas…</button>
       </div>
+      {importando && <ImportarCarpetas alTerminar={cargar} alCerrar={() => setImportando(false)} />}
       {error && <div className="alerta error">{error}</div>}
 
       <form className="panel" onSubmit={crear}>

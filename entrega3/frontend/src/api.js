@@ -106,6 +106,10 @@ export function subirArchivo(sesionId, archivo, alProgresar) {
   return subirFormulario(`/api/sesiones/${sesionId}/archivos`, { archivos: archivo }, alProgresar);
 }
 
+// Sube varias fotos o videos en una sola petición (campo repetido «archivos»), en el orden dado.
+export const subirArchivos = (sesionId, archivos, alProgresar) =>
+  subirFormulario(`/api/sesiones/${sesionId}/archivos`, { archivos }, alProgresar);
+
 // Sube un video de prueba para la evaluación de retiros.
 export const subirVideoPrueba = (archivo, nombre, alProgresar) =>
   subirFormulario("/api/evaluacion/videos", { archivo, nombre }, alProgresar);
@@ -113,7 +117,10 @@ export const subirVideoPrueba = (archivo, nombre, alProgresar) =>
 function subirFormulario(ruta, campos, alProgresar) {
   return new Promise((resolver, rechazar) => {
     const datos = new FormData();
-    for (const [k, v] of Object.entries(campos)) datos.append(k, v);
+    for (const [k, v] of Object.entries(campos)) {
+      if (Array.isArray(v)) v.forEach((x) => datos.append(k, x));
+      else datos.append(k, v);
+    }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", ruta);
     xhr.upload.onprogress = (e) => e.lengthComputable && alProgresar(e.loaded / e.total);
