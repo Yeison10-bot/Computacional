@@ -57,6 +57,7 @@ export const api = {
 
   imagenes: (params) => pedir("GET", `/api/imagenes${consulta(params)}`),
   imagen: (id) => pedir("GET", `/api/imagenes/${id}`),
+  sugerencias: (id) => pedir("GET", `/api/imagenes/${id}/sugerencias`),
   siguientePendiente: (sesionId) => pedir("GET", `/api/imagenes/siguiente-pendiente${consulta({ sesion_id: sesionId })}`),
   guardarAnotaciones: (id, anotaciones, estado) =>
     pedir("PUT", `/api/imagenes/${id}/anotaciones`, { anotaciones, estado }),

@@ -2,13 +2,16 @@
 
 import re
 
+import cv2
+import numpy as np
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from .. import servicios
-from ..config import CRUDOS_FOTOS, CRUDOS_VIDEOS
+from ..config import CRUDOS_FOTOS, CRUDOS_VIDEOS, DATOS
 from ..db import obtener_bd
+from ..vision import obtener_detector
 from ..models import Anotacion, ArchivoMedia, Imagen, Producto, SesionCaptura
 from ..schemas import (ArchivoOut, Caja, GuardarAnotaciones, ImagenDetalle, ImagenOut,
                        SesionCrear, SesionOut)
@@ -226,6 +229,26 @@ def detalle(bd: Session, img: Imagen) -> ImagenDetalle:
 @router.get("/imagenes/{imagen_id}", response_model=ImagenDetalle)
 def ver_imagen(imagen_id: int, bd: Session = Depends(obtener_bd)):
     return detalle(bd, obtener(bd, Imagen, imagen_id, "Imagen"))
+
+
+@router.get("/imagenes/{imagen_id}/sugerencias")
+def sugerir_cajas(imagen_id: int, bd: Session = Depends(obtener_bd)):
+    """Cajas que propone el modelo propio para pre-etiquetar la imagen (no se guardan)."""
+    img = obtener(bd, Imagen, imagen_id, "Imagen")
+    detector = obtener_detector()
+    if not detector.propio:
+        return {"modelo_propio": False, "modelo": detector.ruta.name, "cajas": []}
+    try:
+        imagen = cv2.imdecode(np.fromfile(DATOS / img.ruta, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except OSError:
+        imagen = None
+    if imagen is None:
+        raise HTTPException(404, "No se pudo leer el archivo de la imagen")
+    clases = dict(bd.execute(select(Producto.categoria_yolo, Producto.clase_id)).all())
+    cajas = [{"clase_id": clases[d["categoria"]], "x_centro": d["x_centro"], "y_centro": d["y_centro"],
+              "ancho": d["ancho"], "alto": d["alto"], "confianza": round(d["confianza"], 3)}
+             for d in detector.detectar(imagen) if d["categoria"] in clases]
+    return {"modelo_propio": True, "modelo": detector.ruta.name, "cajas": cajas}
 
 
 @router.put("/imagenes/{imagen_id}/anotaciones", response_model=ImagenDetalle)

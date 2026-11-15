@@ -21,6 +21,14 @@ const aYolo = ({ clase_id, x1, y1, x2, y2 }) => {
   return { clase_id, x_centro: (a + c) / 2, y_centro: (b + d) / 2, ancho: c - a, alto: d - b };
 };
 
+// Una caja propuesta por el modelo deja de serlo en cuanto el usuario la toca o la guarda.
+const confirmada = ({ propuesta, confianza, ...resto }) => resto;
+
+const CLAVE_SUGERIR = "etiquetar.sugerir";
+const leerSugerir = () => {
+  try { return localStorage.getItem(CLAVE_SUGERIR) !== "0"; } catch { return true; }
+};
+
 const ordenar = (b) => ({ ...b, x1: Math.min(b.x1, b.x2), x2: Math.max(b.x1, b.x2), y1: Math.min(b.y1, b.y2), y2: Math.max(b.y1, b.y2) });
 
 export default function Etiquetar() {
@@ -36,6 +44,9 @@ export default function Etiquetar() {
   const [mensaje, setMensaje] = useState(null); // {tipo, texto}
   const svg = useRef(null);
   const arrastre = useRef(null);
+  const [sugerir, setSugerir] = useState(leerSugerir);
+  const [modeloPropio, setModeloPropio] = useState(true); // se corrige con la respuesta del servidor
+  const [pidiendo, setPidiendo] = useState(false);
 
   useEffect(() => {
     api.productos().then(setProductos);
@@ -66,6 +77,31 @@ export default function Etiquetar() {
       .catch((e) => setMensaje({ tipo: "error", texto: e.message }));
   }, [id]);
 
+  // Pre-etiquetado: en una imagen pendiente y sin cajas, el modelo propone las suyas.
+  const imagenId = detalle?.id;
+  const pendienteVacia = detalle?.estado === "pendiente" && detalle.anotaciones.length === 0;
+  useEffect(() => {
+    if (!imagenId || !pendienteVacia || !sugerir) return;
+    let vigente = true; // una respuesta tardía de otra imagen se ignora
+    setPidiendo(true);
+    api.sugerencias(imagenId)
+      .then((r) => {
+        if (!vigente) return;
+        setModeloPropio(r.modelo_propio);
+        const propuestas = r.cajas.map((c) => ({ ...aEsquinas(c), propuesta: true, confianza: c.confianza }));
+        // Nunca se pisan cajas que el usuario ya dibujó mientras llegaba la respuesta.
+        if (propuestas.length) setCajas((cs) => (cs.length ? cs : propuestas));
+      })
+      .catch(() => {}) // un fallo de las sugerencias no bloquea el etiquetado
+      .finally(() => vigente && setPidiendo(false));
+    return () => { vigente = false; setPidiendo(false); };
+  }, [imagenId, pendienteVacia, sugerir]);
+
+  function cambiarSugerir(valor) {
+    setSugerir(valor);
+    try { localStorage.setItem(CLAVE_SUGERIR, valor ? "1" : "0"); } catch { /* sin almacenamiento */ }
+  }
+
   const nombreClase = (c) => productos.find((p) => p.clase_id === c)?.categoria_yolo ?? `clase ${c}`;
 
   // ---------------------------------------------------------------- Guardar y navegar
@@ -76,6 +112,7 @@ export default function Etiquetar() {
       const anotaciones = estado === "descartada" || sinCajas ? [] : cajas.map(aYolo);
       const d = await api.guardarAnotaciones(detalle.id, anotaciones, estado);
       setModificado(false);
+      setCajas((cs) => cs.map(confirmada));
       if (!avanzar) return d;
       const { id: sig } = await api.siguientePendiente(detalle.sesion_id);
       if (sig) {
@@ -206,9 +243,10 @@ export default function Etiquetar() {
       }
       return;
     }
-    setCajas((cs) => cs.map((x, i) => (i === a.indice ? b : x)));
     // Seleccionar una caja sin moverla no cuenta como cambio.
-    if (a.modo === "dibujar" || JSON.stringify(b) !== JSON.stringify(a.original)) setModificado(true);
+    const cambio = a.modo === "dibujar" || JSON.stringify(b) !== JSON.stringify(a.original);
+    setCajas((cs) => cs.map((x, i) => (i === a.indice ? (cambio ? confirmada(b) : b) : x)));
+    if (cambio) setModificado(true);
   }
 
   // ---------------------------------------------------------------- Vista
@@ -225,6 +263,7 @@ export default function Etiquetar() {
 
   const { ancho: W, alto: H } = detalle;
   const proporcion = W / H;
+  const propuestas = cajas.filter((b) => b.propuesta).length;
   const conteo = cajas.reduce((m, b) => ({ ...m, [b.clase_id]: (m[b.clase_id] ?? 0) + 1 }), {});
 
   return (
@@ -244,6 +283,11 @@ export default function Etiquetar() {
         </div>
       </div>
       {mensaje && <div className={`alerta ${mensaje.tipo}`}>{mensaje.texto}</div>}
+      {propuestas > 0 && (
+        <div className="alerta aviso">
+          {propuestas} {propuestas === 1 ? "caja propuesta" : "cajas propuestas"} por el modelo: revísalas antes de guardar.
+        </div>
+      )}
 
       <div className="editor">
         {/* El contenedor toma la proporción exacta de la imagen para que las cajas
@@ -260,10 +304,11 @@ export default function Etiquetar() {
                 <g key={i}>
                   <rect x={b.x1 * W} y={b.y1 * H} width={(b.x2 - b.x1) * W} height={(b.y2 - b.y1) * H}
                     fillOpacity={sel ? 0.25 : 0.1} strokeWidth={sel ? 3 : 2}
+                    strokeDasharray={b0.propuesta ? "7 5" : undefined}
                     vectorEffect="non-scaling-stroke" style={{ fill: color, stroke: color, cursor: "move" }}
                     onPointerDown={(e) => empezar(e, "mover", i)} />
                   <text className="nombre-caja" x={b.x1 * W + 4} y={b.y1 * H - 6} fontSize={W / 75}>
-                    {nombreClase(b.clase_id)}
+                    {nombreClase(b.clase_id)}{b0.propuesta ? ` ${Math.round(b0.confianza * 100)} %` : ""}
                   </text>
                   {sel && ["no", "ne", "so", "se"].map((esq) => (
                     <rect key={esq} width={W / 90} height={W / 90} fill="#fff" strokeWidth={2}
@@ -281,6 +326,15 @@ export default function Etiquetar() {
 
         <div>
           <div className="panel">
+            <label className="fila" title={modeloPropio ? "Al abrir una imagen pendiente sin cajas, el modelo propone las suyas" : "Entrena un modelo primero"}>
+              <input type="checkbox" checked={sugerir && modeloPropio} disabled={!modeloPropio}
+                onChange={(e) => cambiarSugerir(e.target.checked)} />
+              <span>Sugerir cajas con el modelo</span>
+            </label>
+            {!modeloPropio && <p className="subtitulo">Entrena un modelo primero.</p>}
+            {pidiendo && <p className="subtitulo">Consultando al modelo…</p>}
+          </div>
+          <div className="panel">
             <h2>Categoría</h2>
             <div className="clases">
               {productos.map((p) => (
@@ -288,7 +342,7 @@ export default function Etiquetar() {
                   style={{ color: COLORES_CLASE[p.clase_id] }}
                   onClick={() => {
                     setClase(p.clase_id);
-                    if (seleccion !== null) cambiarCajas((cs) => cs.map((b, i) => (i === seleccion ? { ...b, clase_id: p.clase_id } : b)));
+                    if (seleccion !== null) cambiarCajas((cs) => cs.map((b, i) => (i === seleccion ? { ...confirmada(b), clase_id: p.clase_id } : b)));
                   }}>
                   <kbd>{p.clase_id + 1}</kbd>
                   <span style={{ color: "var(--texto)" }}>{p.categoria_yolo}</span>
