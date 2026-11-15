@@ -16,7 +16,7 @@ iPhone / PC ──https──▶ Cloudflare ──túnel──▶ tunel-yeison �
 | Página web | Vite en `http://localhost:5180` | La sirve la misma API (frontend compilado) |
 | Login | Desactivado (sin `ADMIN_CLAVE`) | **Obligatorio** |
 | Cámara de la vitrina | La del navegador o una conectada al PC | **Solo la del dispositivo que abre la página** (celular o PC). Funciona porque la página va por https |
-| YOLO | GPU (RTX 3050) | CPU (más lento al entrenar; la detección en vivo va bien a 5 análisis/s con YOLO11n) |
+| YOLO | GPU (RTX 3050) | CPU (más lento al entrenar; inferencia medida en CPU a 640 px: YOLO11n ≈ 41 ms (≈ 24 análisis/s), YOLO11s ≈ 100 ms (≈ 10 análisis/s); la detección en vivo a 5 análisis/s funciona con ambos) |
 | Datos | `datos/` del proyecto | Volúmenes de Docker `inventario-datos`, `inventario-modelos`, `inventario-postgres` |
 
 ## Primera vez

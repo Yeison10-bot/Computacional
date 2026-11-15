@@ -34,11 +34,12 @@ _recargados = set()      # entrenamientos cuyo modelo ya se cargó en la API
 
 
 class Parametros(BaseModel):
-    epocas: int = Field(50, ge=1, le=300)
+    epocas: int = Field(100, ge=1, le=300)
     imgsz: int = Field(640, ge=320, le=1280, multiple_of=32)
     lote: int = Field(8, ge=1, le=64)
     paciencia: int = Field(15, ge=0, le=100)
     base: str = Field("coco", pattern="^(coco|propio)$")
+    modelo: str = Field("yolo11s", pattern="^(yolo11n|yolo11s)$")  # solo con base coco
 
 
 def leer(id_: str):
@@ -98,6 +99,7 @@ def requisitos():
         "dataset_exportado": (DATASET / "data.yaml").exists(),
         "imagenes": {p: imagenes(p) for p in ("train", "val", "test")},
         "modelo_propio": MODELO_PROPIO.exists(),
+        "modelos_base": ["yolo11s", "yolo11n"],
         "monitor_activo": monitor.activo,
         "entrenando": en_curso(),
     }
@@ -138,7 +140,8 @@ def iniciar(p: Parametros):
         "iniciado_en": datetime.now().astimezone().isoformat(), "epoca": 0, "epocas": p.epocas,
         "historial": [], "graficas": [], "resultado": None, "error": None}, ensure_ascii=False), encoding="utf-8")
     comando = [sys.executable, str(SCRIPT), "--data", str(DATASET / "data.yaml"), "--salida", str(carpeta), "--epocas", str(p.epocas),
-               "--imgsz", str(p.imgsz), "--lote", str(p.lote), "--paciencia", str(p.paciencia), "--base", p.base]
+               "--imgsz", str(p.imgsz), "--lote", str(p.lote), "--paciencia", str(p.paciencia), "--base", p.base,
+               "--modelo", p.modelo]
     registro = open(carpeta / "registro.txt", "w", encoding="utf-8")
     entorno = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
     opciones = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {}

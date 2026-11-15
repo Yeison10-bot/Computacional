@@ -73,7 +73,7 @@ export default function Entrenar() {
   const [lista, setLista] = useState([]);
   const [elegido, setElegido] = useState(null);
   const [detalle, setDetalle] = useState(null);
-  const [param, setParam] = useState({ epocas: 50, imgsz: 640, lote: 8, paciencia: 15, base: "coco" });
+  const [param, setParam] = useState({ epocas: 100, imgsz: 640, lote: 8, paciencia: 15, base: "yolo11s" });
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -101,7 +101,8 @@ export default function Entrenar() {
   async function iniciar() {
     setEnviando(true); setError("");
     try {
-      const { id } = await api.iniciarEntrenamiento(param);
+      const { id } = await api.iniciarEntrenamiento(
+        param.base === "propio" ? { ...param, base: "propio", modelo: "yolo11s" } : { ...param, base: "coco", modelo: param.base });
       setDetalle(null); setElegido(id); cargar();
       setTimeout(() => api.entrenamiento(id).then(setDetalle), 800);
     } catch (e) { setError(e.message); } finally { setEnviando(false); }
@@ -127,7 +128,7 @@ export default function Entrenar() {
       <div className="encabezado">
         <div>
           <h1>Entrenar modelo</h1>
-          <p className="subtitulo">YOLO11n con transfer learning sobre el dataset exportado. Al terminar, el modelo nuevo
+          <p className="subtitulo">YOLO11 con transfer learning sobre el dataset exportado. Al terminar, el modelo nuevo
             reemplaza al provisional en la vitrina y en el conteo por foto.</p>
         </div>
       </div>
@@ -156,7 +157,8 @@ export default function Entrenar() {
           {campo("paciencia", "Paciencia", { min: 0, max: 100, title: "Épocas sin mejorar antes de parar (0 = nunca)" })}
           <label className="campo">Partir de
             <select value={param.base} onChange={(e) => setParam({ ...param, base: e.target.value })}>
-              <option value="coco">yolo11n.pt (COCO)</option>
+              <option value="yolo11s">yolo11s (COCO) — recomendado</option>
+              <option value="yolo11n">yolo11n (COCO) — más rápido</option>
               <option value="propio" disabled={!req.modelo_propio}>modelo propio actual</option>
             </select>
           </label>

@@ -1,4 +1,4 @@
-"""Entrenamiento del modelo propio (etapa 6): YOLO11n con transfer learning.
+"""Entrenamiento del modelo propio (etapa 6): YOLO11 (s o n) con transfer learning.
 
 Lo lanza la interfaz web (página "Entrenar modelo") como un proceso aparte, para
 que la API siga respondiendo mientras la GPU entrena. También se puede usar a mano:
@@ -108,19 +108,21 @@ def main():
     global DATA_YAML
     ap = argparse.ArgumentParser(description="Entrena YOLO con el dataset exportado")
     ap.add_argument("--salida", required=True, help="carpeta de este entrenamiento")
-    ap.add_argument("--epocas", type=int, default=50)
+    ap.add_argument("--epocas", type=int, default=100)
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--lote", type=int, default=8, help="imágenes por lote (8 cabe en 4 GB de GPU)")
     ap.add_argument("--paciencia", type=int, default=15, help="épocas sin mejorar antes de parar")
     ap.add_argument("--base", choices=["coco", "propio"], default="coco",
-                    help="coco: parte de yolo11n.pt; propio: continúa desde el best.pt actual")
+                    help="coco: parte del modelo COCO de --modelo; propio: continúa desde el best.pt actual")
+    ap.add_argument("--modelo", choices=["yolo11n", "yolo11s"], default="yolo11s",
+                    help="modelo COCO de partida (solo con --base coco)")
     ap.add_argument("--data", default=str(DATA_YAML), help="data.yaml del dataset (por defecto, el exportado)")
     args = ap.parse_args()
     DATA_YAML = Path(args.data).resolve()
 
     salida = Path(args.salida).resolve()
     salida.mkdir(parents=True, exist_ok=True)
-    base = MODELOS / ("best.pt" if args.base == "propio" else "yolo11n.pt")
+    base = MODELOS / ("best.pt" if args.base == "propio" else f"{args.modelo}.pt")
     progreso = Progreso(salida, {
         "fase": "preparando", "mensaje": "Cargando PyTorch y el modelo base…",
         "parametros": vars(args) | {"modelo_base": base.name},
@@ -133,6 +135,12 @@ def main():
             raise RuntimeError("No existe datos/dataset/data.yaml: exporta el dataset primero.")
         if contar_imagenes("train") == 0 or contar_imagenes("val") == 0:
             raise RuntimeError("Las particiones train y val no pueden estar vacías: etiqueta más imágenes y vuelve a exportar.")
+        if not base.exists() and args.base == "coco":
+            progreso.guardar(mensaje=f"Descargando {base.name}…")
+            from ultralytics.utils.downloads import attempt_download_asset
+            descargado = Path(attempt_download_asset(str(base)))
+            if descargado.resolve() != base.resolve() and descargado.exists():
+                shutil.move(str(descargado), str(base))
         if not base.exists():
             raise RuntimeError(f"No se encontró el modelo base {base.name}.")
 
