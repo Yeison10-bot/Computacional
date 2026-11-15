@@ -32,6 +32,9 @@ export default function Exportar() {
 
   const maxCajas = Math.max(1, ...resumen.clases.map((c) => c.cajas));
   const totalCajas = resumen.clases.reduce((s, c) => s + c.cajas, 0);
+  const conCajas = resumen.clases.filter((c) => c.cajas > 0);
+  const mayor = conCajas.reduce((m, c) => (!m || c.cajas > m.cajas ? c : m), null);
+  const desequilibradas = mayor ? conCajas.filter((c) => c.cajas * 2 < mayor.cajas) : [];
   const META = 150; // mínimo recomendado de cajas por categoría (docs/03_dataset.md)
 
   return (
@@ -49,6 +52,12 @@ export default function Exportar() {
         <div className="panel"><div className="subtitulo">Pendientes</div><h1>{resumen.imagenes.pendiente}</h1></div>
         <div className="panel"><div className="subtitulo">Cajas en total</div><h1>{totalCajas}</h1></div>
       </div>
+
+      {desequilibradas.map((c) => (
+        <div key={c.clase_id} className="alerta aviso">
+          Desequilibrio: {c.nombre} tiene {c.cajas} cajas, menos de la mitad que {mayor.nombre} ({mayor.cajas}). Etiqueta más fotos de ella antes de entrenar.
+        </div>
+      ))}
 
       <div className="panel tabla-scroll">
         <h2>Cajas por categoría</h2>

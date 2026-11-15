@@ -29,6 +29,11 @@ const leerSugerir = () => {
   try { return localStorage.getItem(CLAVE_SUGERIR) !== "0"; } catch { return true; }
 };
 
+const CLAVE_REGLAS = "etiquetar.reglas";
+const leerReglas = () => {
+  try { return localStorage.getItem(CLAVE_REGLAS) !== "0"; } catch { return true; }
+};
+
 const ordenar = (b) => ({ ...b, x1: Math.min(b.x1, b.x2), x2: Math.max(b.x1, b.x2), y1: Math.min(b.y1, b.y2), y2: Math.max(b.y1, b.y2) });
 
 export default function Etiquetar() {
@@ -45,6 +50,7 @@ export default function Etiquetar() {
   const svg = useRef(null);
   const arrastre = useRef(null);
   const [sugerir, setSugerir] = useState(leerSugerir);
+  const [reglasAbiertas, setReglasAbiertas] = useState(leerReglas);
   const [modeloPropio, setModeloPropio] = useState(true); // se corrige con la respuesta del servidor
   const [pidiendo, setPidiendo] = useState(false);
 
@@ -146,6 +152,11 @@ export default function Etiquetar() {
   function cambiarCajas(fn) {
     setCajas(fn);
     setModificado(true);
+  }
+
+  function alternarReglas(abierto) {
+    setReglasAbiertas(abierto);
+    try { localStorage.setItem(CLAVE_REGLAS, abierto ? "1" : "0"); } catch { /* sin almacenamiento */ }
   }
 
   // ---------------------------------------------------------------- Teclado
@@ -370,6 +381,17 @@ export default function Etiquetar() {
               Sin objetos (ejemplo negativo) <kbd>V</kbd>
             </button>
           </div>
+
+          <details className="panel atajos" open={reglasAbiertas} onToggle={(e) => alternarReglas(e.currentTarget.open)}>
+            <summary style={{ cursor: "pointer", color: "var(--texto)", fontWeight: 600 }}>Reglas de etiquetado</summary>
+            <ul style={{ margin: "8px 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>
+              <li>Caja ajustada al empaque completo, incluida la envoltura transparente; sin margen y sin cortar el producto.</li>
+              <li>Producto tapado o cortado por el borde: se etiqueta si se ve al menos un tercio.</li>
+              <li>El reverso del empaque lleva la misma clase que el frente.</li>
+              <li>Distractores (productos fuera del catálogo y objetos sueltos): nunca llevan caja.</li>
+              <li>Foto sin ningún producto del catálogo: <kbd>V</kbd>. Foto movida o inútil: <kbd>X</kbd>. Fotos seguidas casi iguales: <kbd>C</kbd> copia las cajas de la anterior.</li>
+            </ul>
+          </details>
 
           <div className="panel atajos">
             <b style={{ color: "var(--texto)" }}>Cómo etiquetar</b>

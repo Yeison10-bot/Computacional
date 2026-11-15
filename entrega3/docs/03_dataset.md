@@ -145,9 +145,24 @@ La sección *Exportar dataset* genera el formato YOLO:
 
 Índices de clase: `0 botella`, `1 lata`, `2 vaso`, `3 paquete`, `4 fruta`.
 
+### Reglas de etiquetado
+
+1. Caja ajustada al empaque completo, incluida la envoltura transparente (por
+   ejemplo, la de la Galleta Cuca); sin margen y sin cortar el producto.
+2. Producto tapado o cortado por el borde: se etiqueta si se ve al menos un
+   tercio.
+3. El reverso del empaque lleva la misma clase que el frente.
+4. Distractores (productos fuera del catálogo y objetos sueltos, como la avena
+   fresa Lolak): nunca llevan caja.
+5. Foto sin ningún producto del catálogo: `V`. Foto movida o inútil: `X`. Fotos
+   seguidas casi iguales: `C` copia las cajas de la anterior.
+
+El panel «Reglas de etiquetado» de la pantalla *Etiquetar* muestra lo mismo, y
+*Exportar* avisa si una clase tiene menos de la mitad de cajas que la mayor.
+
 ### Criterios de etiquetado
 
 - La caja abarca el objeto completo, sin margen extra.
-- Objeto cortado por el borde de la imagen: se etiqueta si se ve más del 50 %.
+- Objeto cortado por el borde de la imagen: se etiqueta si se ve al menos un tercio.
 - Objeto tapado por la mano: se etiqueta solo la parte visible si es reconocible.
 - Distractores (llaves, celular): **no** se etiquetan.
