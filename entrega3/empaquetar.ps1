@@ -8,7 +8,7 @@
 $ErrorActionPreference = 'Stop'
 $raiz = $PSScriptRoot
 # tar de Windows (bsdtar); el tar de Git no entiende rutas con 'C:'
-$tar = "$env:SystemRoot\System32	ar.exe"
+$tar = "$env:SystemRoot\System32\tar.exe"
 if (-not (Test-Path $tar)) { $tar = 'tar' }
 
 function Fallo($mensaje) {
