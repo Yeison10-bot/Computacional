@@ -16,7 +16,9 @@ Instale primero estos tres programas (una sola vez):
 
 ## Pasos
 
-1. Descomprima el .zip (por ejemplo en `C:\entrega3`).
+1. Descomprima el .zip en una ruta corta, por ejemplo directamente en `C:\` (queda `C:\entrega3`).
+   Evite carpetas muy anidadas, como el Escritorio de OneDrive: Windows limita las rutas a 260
+   caracteres y la instalación de PyTorch fallaría.
 2. Abra PowerShell en esa carpeta (en el Explorador: clic derecho dentro de la carpeta con Mayús pulsada, «Abrir ventana de PowerShell aquí»).
 3. Instale (una vez; pedirá la contraseña de PostgreSQL y tarda varios minutos):
 

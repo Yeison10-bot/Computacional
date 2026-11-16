@@ -35,6 +35,14 @@ if ($faltan.Count -gt 0) {
     Fallo "Siga INSTALAR.md (enlaces de descarga) y vuelva a ejecutar este script."
 }
 
+# Sin rutas largas habilitadas, Windows corta en 260 caracteres, y algunos archivos de
+# PyTorch quedan a unos 150 caracteres de esta carpeta: pip fallaría a mitad de camino.
+$rutasLargas = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -ErrorAction SilentlyContinue).LongPathsEnabled -eq 1
+if (-not $rutasLargas -and $raiz.Length -gt 80) {
+    Fallo ("La carpeta está en una ruta muy larga ({0} caracteres) para este Windows.`n" -f $raiz.Length +
+           "Mueva la carpeta entrega3 a una ruta corta, por ejemplo C:\entrega3, y vuelva a ejecutar este script.")
+}
+
 # 2. Archivo .env.
 Write-Host "2/5 Configuración (.env)..."
 if (Test-Path "$raiz\.env") {
@@ -84,7 +92,7 @@ if ($gpu) {
 & $py -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { Fallo "No se pudo actualizar pip." }
 & $py -m pip install @torch --index-url $indice
-if ($LASTEXITCODE -ne 0) { Fallo "Falló la instalación de PyTorch. Revise la conexión a internet." }
+if ($LASTEXITCODE -ne 0) { Fallo "Falló la instalación de PyTorch. Revise la conexión a internet y el mensaje de pip de arriba." }
 
 $temporal = Join-Path $env:TEMP 'requirements-sin-torch.txt'
 [IO.File]::WriteAllLines($temporal, [string[]]$resto, (New-Object Text.UTF8Encoding($false)))
