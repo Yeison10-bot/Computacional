@@ -52,6 +52,8 @@ notepad .env
 cd frontend; npm install; cd ..
 ```
 
+Para instalar en otro equipo (por ejemplo el del profesor) desde un .zip, vea [INSTALAR.md](INSTALAR.md); el paquete se genera con `empaquetar.ps1`.
+
 ## Ejecución
 
 ```powershell
