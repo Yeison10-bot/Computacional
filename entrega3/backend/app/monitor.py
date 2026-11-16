@@ -76,8 +76,9 @@ DUDOSOS = {
 # uno fijo según su nombre (los productos se pueden crear desde la página).
 PALETA_BGR = [(214, 120, 42), (52, 104, 235), (122, 175, 27), (0, 161, 237), (164, 123, 232),
               (210, 99, 138), (182, 160, 10), (42, 121, 168)]
-COLORES = {"botella": PALETA_BGR[0], "lata": PALETA_BGR[1], "vaso": PALETA_BGR[2],
-           "paquete": PALETA_BGR[3], "fruta": PALETA_BGR[4]}
+# Los 5 productos del catálogo inicial, en el orden de su clase_id (mismo color que en la web).
+COLORES = {"avena_original": PALETA_BGR[0], "galleta_crakena": PALETA_BGR[1], "galleta_ducales": PALETA_BGR[2],
+           "leche_entera": PALETA_BGR[3], "galleta_cuca": PALETA_BGR[4]}
 
 
 def color_de(categoria):

@@ -1,4 +1,4 @@
-"""Crea la base de datos, sus tablas y un catálogo de ejemplo (solo si está vacío).
+"""Crea la base de datos, sus tablas y el catálogo de los 5 productos (solo si está vacío).
 
 Ejecutar desde la raíz del proyecto (con el .env configurado):
     .venv\\Scripts\\python.exe database\\crear_bd.py
@@ -24,13 +24,15 @@ from backend.app.config import url_base_datos  # noqa: E402
 from backend.app.db import Base, SesionBD, engine  # noqa: E402
 from backend.app.models import Inventario, Producto  # noqa: E402
 
+# La categoría YOLO debe ser idéntica al nombre de la clase en el modelo entrenado
+# (vision/modelos/best.pt): el inventario empareja cada detección con su producto por ese nombre.
 CATALOGO = [
     # clase_id, categoría YOLO, nombre en la cafetería, precio (COP)
-    (0, "botella", "Agua / jugo embotellado", 3500),
-    (1, "lata", "Gaseosa en lata", 3000),
-    (2, "vaso", "Café para llevar", 4000),
-    (3, "paquete", "Snack (papas, galletas)", 2500),
-    (4, "fruta", "Fruta", 1500),
+    (0, "avena_original", "Avena original", 5000),
+    (1, "galleta_crakena", "Galleta Crakeña", 2000),
+    (2, "galleta_ducales", "Galletas Ducales", 3000),
+    (3, "leche_entera", "Leche entera", 2500),
+    (4, "galleta_cuca", "Galleta Cuca", 1500),
 ]
 CANTIDAD_INICIAL = 10
 STOCK_MINIMO = 3
