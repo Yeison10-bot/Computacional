@@ -118,13 +118,19 @@ Las sesiones, archivos, imágenes y etiquetas se registran en PostgreSQL (tablas
 Los fotogramas de un mismo video son muy parecidos entre sí. Si se reparten al
 azar, imágenes casi idénticas quedan en entrenamiento y en validación, y el mAP
 sale artificialmente alto (**fuga de datos**). Por eso la división se hace por
-sesión o por video, no por imagen:
+**bloques de imágenes seguidas**, no por imagen suelta (`asignar_particiones` en
+`backend/app/routers/exportar.py`):
 
-| Conjunto | Contenido | Uso |
-|---|---|---|
-| `train` (≈ 70 %) | La mayoría de los videos de S01–S06 | Entrenar |
-| `val` (≈ 20 %) | Videos completos de S01–S06 apartados | Ajustar y elegir el mejor modelo |
-| `test` (≈ 10 % + S07) | Videos apartados + objetos reservados | Evaluación final y generalización |
+| Origen | Cómo se reparte |
+|---|---|
+| Video | Un bloque continuo por partición (≈ 70 % `train`, 20 % `val`, 10 % `test`), con 5 fotogramas descartados entre bloques |
+| Sesión de fotos | Bloques de 10 fotos seguidas: 7 a `train`, 2 a `val` y 1 a `test` |
+| Sesión de prueba de generalización | Completa a `test` |
+
+Las sesiones de fotos se reparten en bloques cortos porque suelen reunir varias
+escenas tomadas una tras otra (cada producto con su distractor). Con un solo
+bloque por partición, las últimas escenas quedaban enteras en `val` y `test`, y el
+modelo nunca veía esos distractores al entrenar.
 
 ## 9. Etiquetado
 

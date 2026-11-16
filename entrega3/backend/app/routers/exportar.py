@@ -36,14 +36,24 @@ def resumen(bd: Session = Depends(obtener_bd)):
     }
 
 
-def asignar_particiones(imagenes, val, test, semilla, hueco=5):
-    """Reparte las imágenes en train/val/test por BLOQUES TEMPORALES dentro de cada video.
+BLOQUE_FOTOS = 10  # fotos seguidas por bloque al repartir una sesión de fotos
 
-    Con pocos videos (p. ej. uno por producto), repartir videos enteros deja clases
-    sin ejemplos en train. Aquí cada video aporta un bloque a cada partición, así las
-    clases quedan en las tres. Entre bloques se descartan `hueco` fotogramas para que
-    no haya fotogramas casi idénticos a ambos lados de un corte. Las sesiones de
-    prueba de generalización van completas a test.
+
+def asignar_particiones(imagenes, val, test, semilla, hueco=5):
+    """Reparte las imágenes en train/val/test por BLOQUES TEMPORALES.
+
+    Videos: con pocos videos (p. ej. uno por producto), repartir videos enteros deja
+    clases sin ejemplos en train. Aquí cada video aporta un bloque a cada partición, así
+    las clases quedan en las tres. Entre bloques se descartan `hueco` fotogramas para que
+    no haya fotogramas casi idénticos a ambos lados de un corte.
+
+    Sesiones de fotos: se reparten en bloques cortos de BLOQUE_FOTOS fotos seguidas
+    (con 20 % y 10 %: 7 a train, 2 a val y 1 a test en cada bloque). Una sesión de
+    fotos suele reunir varias escenas tomadas una tras otra (cada producto con su
+    distractor); con un solo bloque por partición, las últimas escenas nunca llegarían
+    a train y el modelo no aprendería a ignorar esos distractores.
+
+    Las sesiones de prueba de generalización van completas a test.
     Las imágenes descartadas por el hueco no aparecen en el resultado.
     """
     advertencias = []
@@ -74,6 +84,19 @@ def asignar_particiones(imagenes, val, test, semilla, hueco=5):
         # Orden de los bloques val/test varía por grupo (determinista con la semilla)
         orden = ["val", "test"]
         random.Random(f"{semilla}-{clave}").shuffle(orden)
+
+        if clave[0] == "fotos":
+            # Redondeo acumulado: los totales del grupo siguen siendo n_val y n_test.
+            for inicio in range(0, n, BLOQUE_FOTOS):
+                fin = min(inicio + BLOQUE_FOTOS, n)
+                tam = {d: round(fin * total / n) - round(inicio * total / n)
+                       for d, total in (("val", n_val), ("test", n_test))}
+                destinos = ["train"] * (fin - inicio - tam["val"] - tam["test"])
+                destinos += [d for d in orden for _ in range(tam[d])]
+                for img, destino in zip(imgs[inicio:fin], destinos):
+                    asignacion[img.id] = destino
+            continue
+
         tam = {"val": n_val, "test": n_test}
 
         for img in imgs[:n_train]:
