@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from . import auth
 from .config import DATOS, RAIZ
 from .monitor import monitor
-from .routers import catalogo, dataset, entrenamiento, estadisticas, evaluacion, exportar, inventario
+from .routers import catalogo, dataset, entrenamiento, estadisticas, exportar, inventario
 from .routers import monitor as rutas_monitor
 from .vision import obtener_detector
 
@@ -64,7 +64,6 @@ app.include_router(dataset.router)
 app.include_router(exportar.router)
 app.include_router(entrenamiento.router)
 app.include_router(estadisticas.router)
-app.include_router(evaluacion.router)
 
 # Sirve las imágenes y videos guardados en datos/ (p. ej. /archivos/imagenes/S01/...).
 DATOS.mkdir(exist_ok=True)

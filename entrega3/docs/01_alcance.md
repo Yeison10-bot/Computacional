@@ -71,8 +71,7 @@ Ventajas de la vista cenital:
 - Prevención de registros duplicados mediante una ventana de estabilidad temporal.
 - Base de datos PostgreSQL: catálogo, inventario, movimientos.
 - API en FastAPI e interfaz web en React con inventario, historial y estadísticas.
-- Evaluación del detector (mAP, precisión, recall, matriz de confusión) y del
-  sistema (retiros correctos, omitidos, duplicados, falsos positivos, latencia).
+- Evaluación del detector (mAP, precisión, recall, matriz de confusión).
 
 ## 5. Qué queda fuera del alcance
 

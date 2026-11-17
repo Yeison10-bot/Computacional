@@ -5,12 +5,11 @@ import { ProveedorAvisos } from "./componentes/Avisos.jsx";
 import { ProveedorCamara } from "./componentes/CamaraNavegador.jsx";
 import { ProveedorSesion, useSesion } from "./componentes/Sesion.jsx";
 import {
-  IconoCamara, IconoCarpeta, IconoCatalogo, IconoEntrenar, IconoEtiqueta, IconoExportar, IconoGrafica, IconoMeta, IconoHistorial, IconoPanel, IconoVision,
+  IconoCamara, IconoCarpeta, IconoCatalogo, IconoEntrenar, IconoEtiqueta, IconoExportar, IconoGrafica, IconoHistorial, IconoPanel, IconoVision,
 } from "./componentes/Iconos.jsx";
 import Catalogo from "./paginas/Catalogo.jsx";
 import Entrenar from "./paginas/Entrenar.jsx";
 import Estadisticas from "./paginas/Estadisticas.jsx";
-import Evaluacion from "./paginas/Evaluacion.jsx";
 import Etiquetar from "./paginas/Etiquetar.jsx";
 import Exportar from "./paginas/Exportar.jsx";
 import Historial from "./paginas/Historial.jsx";
@@ -75,8 +74,6 @@ function Aplicacion() {
           <NavLink to="/etiquetar"><IconoEtiqueta /> Etiquetar</NavLink>
           <NavLink to="/exportar"><IconoExportar /> Exportar dataset</NavLink>
           <NavLink to="/entrenar"><IconoEntrenar /> Entrenar modelo</NavLink>
-          <div className="grupo">Evaluación</div>
-          <NavLink to="/evaluacion"><IconoMeta /> Evaluación de retiros</NavLink>
           <div className="pie">
             <div>
               <span className={`estado-conexion ${camara?.activo ? "vivo" : ""}`} />
@@ -112,7 +109,6 @@ function Aplicacion() {
             <Route path="/exportar" element={<Exportar />} />
             <Route path="/entrenar" element={<Entrenar />} />
             <Route path="/estadisticas" element={<Estadisticas />} />
-            <Route path="/evaluacion" element={<Evaluacion />} />
             <Route path="*" element={<p>Página no encontrada.</p>} />
           </Routes>
         </main>

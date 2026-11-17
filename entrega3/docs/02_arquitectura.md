@@ -186,7 +186,7 @@ degradada, el modelo provisional veía 0, 1 o 2 frutas en fotogramas seguidos
 direcciones (venta, luego reposición…). Con la regla de mayoría el sistema marcó
 la detección como dudosa y no registró eventos falsos; a cambio, omitió esa
 venta. Es el compromiso entre **retiros omitidos** y **registros falsos** que se
-medirá en la evaluación (etapa 11); un modelo propio con confianzas altas lo
+medirá con la vitrina real; un modelo propio con confianzas altas lo
 reduce.
 
 ## 5. Modelo de datos (conceptual)
@@ -264,7 +264,7 @@ Decisiones:
 
 | Modo | Fuente | Uso |
 |---|---|---|
-| Archivo | Video grabado con el iPhone (`datos/videos_prueba/*.mp4`) | Desarrollo, calibración y evaluación (resultados repetibles) |
+| Archivo | Video grabado con el iPhone | Desarrollo y calibración (resultados repetibles) |
 | En vivo | iPhone como webcam con Iriun (`cv2.VideoCapture(índice)`) | Demostración |
 
 Ambos modos usan la misma función de OpenCV, así que el resto del sistema no

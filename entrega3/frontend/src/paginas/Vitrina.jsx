@@ -292,7 +292,7 @@ function EnVivo({ productos }) {
                 {fuente === "archivo" && (
                   <label className="campo">
                     Ruta del video en este computador
-                    <input placeholder="D:\Tercer Corte\Vision_Computacional\datos\videos_prueba\prueba1.mp4"
+                    <input placeholder="D:\Videos\prueba1.mp4"
                       value={archivo} onChange={(e) => setArchivo(e.target.value)} />
                   </label>
                 )}

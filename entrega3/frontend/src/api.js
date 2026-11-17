@@ -75,13 +75,6 @@ export const api = {
   estadisticas: (dias) => pedir("GET", `/api/estadisticas${consulta({ dias })}`),
   reiniciarDatos: () => pedir("POST", "/api/inventario/reiniciar", { confirmacion: "REINICIAR" }),
 
-  videosPrueba: () => pedir("GET", "/api/evaluacion/videos"),
-  videoPrueba: (id) => pedir("GET", `/api/evaluacion/videos/${id}`),
-  guardarEventosReales: (id, eventos, tolerancia_s) => pedir("PUT", `/api/evaluacion/videos/${id}/eventos`, { eventos, tolerancia_s }),
-  evaluarVideo: (id) => pedir("POST", `/api/evaluacion/videos/${id}/evaluar`),
-  borrarVideoPrueba: (id) => pedir("DELETE", `/api/evaluacion/videos/${id}`),
-  resumenEvaluacion: () => pedir("GET", "/api/evaluacion/resumen"),
-
   salud: () => pedir("GET", "/api/salud"),
   panel: () => pedir("GET", "/api/panel"),
   modelo: () => pedir("GET", "/api/vision/modelo"),
@@ -109,10 +102,6 @@ export function subirArchivo(sesionId, archivo, alProgresar) {
 // Sube varias fotos o videos en una sola petición (campo repetido «archivos»), en el orden dado.
 export const subirArchivos = (sesionId, archivos, alProgresar) =>
   subirFormulario(`/api/sesiones/${sesionId}/archivos`, { archivos }, alProgresar);
-
-// Sube un video de prueba para la evaluación de retiros.
-export const subirVideoPrueba = (archivo, nombre, alProgresar) =>
-  subirFormulario("/api/evaluacion/videos", { archivo, nombre }, alProgresar);
 
 function subirFormulario(ruta, campos, alProgresar) {
   return new Promise((resolver, rechazar) => {

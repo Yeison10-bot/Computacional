@@ -37,9 +37,6 @@ export const IconoEntrenar = (p) => (
 export const IconoGrafica = (p) => (
   <Icono {...p}><path d="M4 20h16" /><path d="M7 16v-5" /><path d="M12 16V7" /><path d="M17 16v-8" /></Icono>
 );
-export const IconoMeta = (p) => (
-  <Icono {...p}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.8" /></Icono>
-);
 export const IconoSubir = (p) => (
   <Icono {...p}><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M4 20h16" /></Icono>
 );

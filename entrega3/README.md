@@ -15,14 +15,12 @@ como **reposición**.
 | `docs/` | Alcance, arquitectura, informe y `evidencias/` (capturas, videos de demostración) |
 | `datos/crudos/` | Fotos y videos originales sin procesar |
 | `datos/dataset/` | Dataset en formato YOLO (`images/` y `labels/` con `train`, `val`, `test`) |
-| `datos/videos_prueba/` | Videos de prueba con los retiros reales anotados |
 | `vision/` | Captura con OpenCV, detección con YOLO y lógica de eventos |
 | `vision/entrenamiento/` | Scripts de entrenamiento y validación del modelo |
 | `vision/modelos/` | Pesos entrenados |
 | `backend/` | API con FastAPI |
 | `database/` | Esquema SQL y datos iniciales |
 | `frontend/` | Interfaz web con React + Vite |
-| `evaluacion/` | Scripts de métricas y resultados |
 
 ## Requisitos verificados en el equipo
 
@@ -76,4 +74,3 @@ La documentación interactiva de la API queda en http://localhost:8000/docs.
 | Etiquetar | Dibujar las cajas de cada producto, con atajos de teclado |
 | Exportar dataset | Ver el balance de cajas por categoría y generar `datos/dataset` en formato YOLO, dividido por video |
 | Entrenar modelo | Entrenar YOLO11n en la GPU con el dataset exportado: avance por época, curvas, métricas por categoría en validación y prueba, matriz de confusión. Al terminar, el modelo nuevo (`vision/modelos/best.pt`) reemplaza al provisional |
-| Evaluación de retiros | Subir videos de prueba, marcar en el reproductor cada retiro real y evaluar: aciertos, omitidos, falsos positivos, duplicados, precisión, recall, F1 y latencia, por video y en total |

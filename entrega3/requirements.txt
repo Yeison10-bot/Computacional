@@ -17,6 +17,6 @@ psycopg[binary]      # controlador de PostgreSQL
 python-dotenv        # lee la configuración del archivo .env
 requests             # el módulo de visión envía eventos a la API
 
-# Evaluación y gráficas
+# Gráficas y tablas
 pandas
 matplotlib

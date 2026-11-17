@@ -31,8 +31,6 @@ datos/entrenamientos/
 vision/modelos/best_anterior.pt
 vision/modelos/yolo11s.pt
 
-# Videos de evaluación (pesados) y pesos que descarga Ultralytics
-datos/videos_prueba/*
-!datos/videos_prueba/.gitkeep
+# Pesos que descarga Ultralytics
 weights/
 *.tmp

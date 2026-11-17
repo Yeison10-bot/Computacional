@@ -77,7 +77,7 @@ Todo se hace desde la interfaz web (*Sesiones de captura* → *Etiquetar* →
 
 ## 5. Calibrar el monitoreo con la vitrina real (etapa 7)
 
-- [ ] Grabar videos de prueba en `datos/videos_prueba/` con retiros y
+- [ ] Grabar videos de prueba con retiros y
       reposiciones **conocidos** (anotar en un archivo cuántos hubo y cuándo).
 - [ ] Probarlos con *Vitrina en vivo* → *Cámara fija del servidor* → *Archivo de video*.
 - [ ] Ajustar en la interfaz el **tiempo de confirmación** (sugerido 4–5 s en
@@ -97,17 +97,9 @@ Todo se hace desde la interfaz web (*Sesiones de captura* → *Etiquetar* →
 
 ## 7. Evaluación con métricas (etapa 11)
 
-- [x] Página **Evaluación de retiros** (04/11/2026): se suben los videos de prueba,
-      se marcan los retiros reales en el reproductor y se calculan las métricas.
-- [ ] Métricas del sistema:
-      - Retiros detectados correctamente.
-      - **Retiros omitidos** (falsos negativos).
-      - **Registros duplicados** y eventos falsos (falsos positivos).
-      - Precisión y recall de eventos.
-      - **Tiempo de respuesta**: desde que se retira el producto hasta que aparece la venta.
 - [ ] Métricas del modelo: mAP, precisión y recall por categoría (de la etapa 6).
 - [ ] Rendimiento: inferencia en ms y fps (GPU frente a CPU).
-- [ ] Guardar tablas y gráficas en `evaluacion/resultados/`.
+- [ ] Guardar tablas y gráficas de las métricas del modelo.
 
 ## 8. Documentación y entrega (etapa 12)
 

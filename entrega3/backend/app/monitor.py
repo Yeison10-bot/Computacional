@@ -110,8 +110,8 @@ class LogicaRetiros:
     """El algoritmo de los pasos 2 a 4, sin cámara ni base de datos.
 
     Recibe el tiempo, el fotograma y el conteo de YOLO, y dice qué cambios se
-    confirman. Lo usan el monitoreo en vivo (con el reloj real) y la evaluación
-    con videos de prueba (con el tiempo del video), así ambos se comportan igual.
+    confirman. La usa el monitoreo en vivo. Al no depender de la cámara ni de la
+    base de datos, funciona con cualquier fuente de imágenes.
     """
 
     def __init__(self, categorias, parametros):
